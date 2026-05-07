@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from services.gemini_service import GeminiNarrativeService
 from services.bigquery_service import BigQueryService
@@ -12,6 +13,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI(title="Hometown Heroes API")
+
+# Mount the static images directory so the browser can access the favicon
+app.mount("/img", StaticFiles(directory="img"), name="img")
 
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 

@@ -3,6 +3,7 @@ def get_head_html(title: str) -> str:
     <head>
         <meta charset="UTF-8">
         <title>{title}</title>
+        <link rel="icon" type="image/x-icon" href="/img/favicon/favicon.ico">
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     """
