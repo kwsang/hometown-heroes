@@ -46,14 +46,13 @@ def parse_athlete_pdf(
     instructions += (
         " Continue extracting names until you find a clear header indicating a new sport (typically large BLUE or RED text). "
          "Crucially, participation years often wrap to the next line. Ensure you collect ALL years for an athlete, even if the next athlete's name starts on the line immediately following the wrapped years. "
-        "It is IMPERATIVE that you complete the extraction. To save space, format the output as a JSON list of lists where each inner list represents an athlete: [\"Name\", \"Hometown\", [Year1, Year2]]. "
+        "It is IMPERATIVE that you complete the extraction. To save space, format the output as a JSON list of lists where each inner list represents an athlete: [\"Name\", [Year1, Year2]]. "
         "Do NOT include the sport name in the inner list as it is redundant. "
         "Ensure the final output is a perfectly valid and complete JSON array. If you think you've reached the end of a section, check at least 5 more entries or the top of the next page to ensure no column transitions were missed. "
         "Ignore athletes from other sports. Do not include trailing commas or markdown formatting.\n\n"
         "STRICT RULES:\n"
-        "1. Format: [[\"NAME, First\", \"City, State\", [2004, 2008]], ...]\n"
-        "2. If hometown is missing, use null.\n"
-        "3. Preserve the athlete's name EXACTLY as it appears in the PDF. Do not reformat, normalize, or change the casing (e.g., if 'SMITH, John', keep it as 'SMITH, John')."
+        "1. Format: [[\"NAME, First\", [2004, 2008]], ...]\n"
+        "2. Preserve the athlete's name EXACTLY as it appears in the PDF. Do not reformat, normalize, or change the casing (e.g., if 'SMITH, John', keep it as 'SMITH, John')."
     )
 
     prompt = f"Convert the athletes listed under the sport '{sport_name}' into a structured JSON list."
@@ -106,8 +105,8 @@ def parse_athlete_pdf(
                 athlete_data.append({
                     "name": item[0],
                     "sport": sport_name,
-                    "hometown": item[1],
-                    "participation_years": item[2]
+                    "hometown": None,
+                    "participation_years": item[1]
                 })
 
             if athlete_data:

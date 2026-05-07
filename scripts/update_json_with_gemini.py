@@ -88,6 +88,7 @@ def main():
             athletes = json.load(f)
 
         updated_count = 0
+        skipped_count = 0
         for athlete in athletes:
             hometown_val = athlete.get('hometown')
             # Only query if hometown is missing, explicitly 'null' string, or doesn't match 'City, State' pattern
@@ -99,11 +100,14 @@ def main():
                     athlete['hometown'] = hometown
                     updated_count += 1
                     logging.info(f"Found location for {name}: {hometown}")
+            else:
+                skipped_count += 1
 
         if updated_count > 0:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(athletes, f, indent=4)
-            logging.info(f"Updated {updated_count} records in {filename}")
+        
+        logging.info(f"Finished {filename}: {updated_count} updated, {skipped_count} skipped (already have valid hometowns).")
 
 if __name__ == "__main__":
     main()

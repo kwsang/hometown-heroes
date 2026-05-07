@@ -49,7 +49,7 @@ if __name__ == "__main__":
             sport_map = json.load(f)
 
         # --- CONSOLIDATION & CHUNKING LOGIC ---
-        MAX_PAGES = 5
+        MAX_PAGES = 3
         
         # 1. Consolidate existing parts back to base sports to prevent nesting
         consolidated_source = {}
