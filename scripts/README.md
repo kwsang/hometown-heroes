@@ -22,6 +22,9 @@ graph TD
     M[resources/processed/*.json] --> J{sync_hometowns_to_processed.py};
     J --> I;
     I --> K{ingest_hometown_data.py};
+    I --> Q{generate_hometown_registry.py};
+    M --> Q;
+    Q --> R[resources/hometown_registry.json];
     K --> L[BigQuery: athletes table];
     K --> M[resources/processed/*.json];
     L --> N{process_geocoding.py};
@@ -110,6 +113,15 @@ graph TD
 *   **Input:** BigQuery `team_usa_data.athletes_raw` table.
 *   **Output:** BigQuery `team_usa_data.athletes_data` table.
 *   **Estimated Processing Time:** Variable, depends on chunk size, number of athletes, and BigQuery ML processing time.
+
+### 9. Generate Hometown Registry
+
+*   **Script:** `generate_hometown_registry.py`
+*   **Purpose:** This script scans both the `resources/output` and `resources/processed` directories to aggregate statistics by hometown. It calculates the total number of athletes per hometown and provides a breakdown of sports representation (with counts) for each location.
+*   **Gemini Calls:** None. This is a local data aggregation step.
+*   **Input:** `resources/output/*.json`, `resources/processed/*.json`
+*   **Output:** `resources/hometown_registry.json`
+*   **Estimated Processing Time:** Fast, typically seconds.
 
 ## Statistics and Performance (Placeholders - Gather during execution)
 
