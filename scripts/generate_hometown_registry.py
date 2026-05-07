@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import logging
 from dotenv import load_dotenv
 
@@ -54,6 +55,10 @@ def generate_hometown_registry():
                     if not hometown or str(hometown).lower() == 'null':
                         continue
                     
+                    # Filter out hometowns that are not in "City, State" format
+                    if not re.match(r'^[a-zA-ZÀ-ÿ\s\.\-\']{2,50},\s[a-zA-ZÀ-ÿ\s\.\-\']{2,50}$', str(hometown).strip()):
+                        continue
+
                     if hometown not in registry:
                         registry[hometown] = {
                             "total_athletes": 0,

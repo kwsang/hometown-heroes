@@ -24,7 +24,8 @@ graph TD
     I --> K{ingest_hometown_data.py};
     I --> Q{generate_hometown_registry.py};
     M --> Q;
-    Q --> R[resources/hometown_registry.json];
+    Q --> R[resources/hometown_registry.json] --> S{ingest_hometown_registry.py};
+    S --> T[BigQuery: hometown_registry table];
     K --> L[BigQuery: athletes table];
     K --> M[resources/processed/*.json];
     L --> N{process_geocoding.py};
@@ -121,6 +122,16 @@ graph TD
 *   **Gemini Calls:** None. This is a local data aggregation step.
 *   **Input:** `resources/output/*.json`, `resources/processed/*.json`
 *   **Output:** `resources/hometown_registry.json`
+*   **Estimated Processing Time:** Fast, typically seconds.
+
+### 10. Ingest Hometown Registry into BigQuery
+
+*   **Script:** `ingest_hometown_registry.py`
+*   **Purpose:** This script reads the aggregated `hometown_registry.json` and ingests it into the `hometown_registry` table in BigQuery. It uses a **Repeated Record** schema for the sports breakdown, allowing for complex nested queries on hometown-specific performance.
+*   **Gemini Calls:** None.
+*   **Input:** `resources/hometown_registry.json`
+re.sub(r'(\s\(Part \d+\))+', '', sport)
+*   **Output:** Data in BigQuery (`team_usa_data.hometown_registry`).
 *   **Estimated Processing Time:** Fast, typically seconds.
 
 ## Statistics and Performance (Placeholders - Gather during execution)

@@ -55,8 +55,8 @@ def is_valid_hometown_format(hometown_str: str) -> bool:
     """
     if not isinstance(hometown_str, str):
         return False
-    # This regex checks for at least one character, a comma, optional whitespace, and then at least one more character.
-    return re.match(r'^[^,]+,\s*[^,]+$', hometown_str.strip()) is not None
+    # This regex ensures the hometown follows "City, State" format while excluding long descriptive sentences.
+    return re.match(r'^[a-zA-ZÀ-ÿ\s\.\-\']{2,50},\s[a-zA-ZÀ-ÿ\s\.\-\']{2,50}$', hometown_str.strip()) is not None
 
 def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list, location: str = "US"):
     """

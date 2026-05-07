@@ -92,7 +92,7 @@ def main():
         for athlete in athletes:
             hometown_val = athlete.get('hometown')
             # Only query if hometown is missing, explicitly 'null' string, or doesn't match 'City, State' pattern
-            if not hometown_val or str(hometown_val).lower() == 'null' or not re.match(r'^[^,]+,\s*[^,]+$', str(hometown_val)):
+            if not hometown_val or str(hometown_val).lower() == 'null' or not re.match(r'^[a-zA-ZÀ-ÿ\s\.\-\']{2,50},\s[a-zA-ZÀ-ÿ\s\.\-\']{2,50}$', str(hometown_val).strip()):
                 name = athlete.get('name')
                 sport = athlete.get('sport')
                 hometown = get_hometown_via_gemini(name, sport, model)
