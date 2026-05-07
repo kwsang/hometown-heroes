@@ -9,12 +9,12 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-def get_sport_mapping(pdf_path: str, project_id: str) -> Dict[str, List[int]]:
+def get_sport_mapping(pdf_path: str, project_id: str, location: str = "us-central1") -> Dict[str, List[int]]:
     """
     Uses Gemini to identify which pages contain which sports.
     Returns a mapping of sport names to 1-based page numbers.
     """
-    vertexai.init(project=project_id)
+    vertexai.init(project=project_id, location=location)
     model = GenerativeModel("gemini-2.5-flash-lite")
     
     with open(pdf_path, "rb") as f:
@@ -22,26 +22,30 @@ def get_sport_mapping(pdf_path: str, project_id: str) -> Dict[str, List[int]]:
     
     pdf_part = Part.from_data(data=pdf_data, mime_type="application/pdf")
     prompt = (
-        "Analyze this Team USA athlete directory. Create a JSON mapping where keys are official sport names "
-        "and values are lists of the page numbers (1-based) where that sport's athletes are listed. "
-        "Note that a sport can span multiple pages and a page can have multiple sports."
+        "Thoroughly analyze this Team USA athlete directory to create a comprehensive sport-to-page index. "
+        "Return a JSON mapping where keys are official sport names and values are arrays of ALL 1-based page numbers "
+        "where that sport's athletes are listed.\n\n"
+        "CRITICAL BOUNDARY RULES:\n"
+        "1. Identify the exact page where a sport starts (look for large section headers) and the exact page where it ends.\n"
+        "2. Include EVERY page in the range. For example, if 'Soccer' begins on page 53 and continues through 57, "
+        "the list must be [53, 54, 55, 56, 57]. Do not omit the start or end pages."
     )
     
     response = model.generate_content([prompt, pdf_part], generation_config={"response_mime_type": "application/json"})
     return json.loads(response.text)
 
-def parse_athlete_pdf(pdf_path: str, output_json_path: str, project_id: str, sport_name: str, location: str = "us-central1") -> List[Dict]:
+def parse_athlete_pdf(pdf_path: str, project_id: str, sport_name: str, location: str = "us-central1", save_to_json: bool = False, output_json_path: str = None) -> List[Dict]:
     """
     Uses Gemini 2.5 Flash Lite to parse a PDF for a specific sport into a structured JSON format.
     Ensures compliance with strict terminology and data formatting rules.
     """
     vertexai.init(project=project_id, location=location)
     # Use gemini-2.5-flash-lite for efficient parsing of structured data from PDFs
-    model = GenerativeModel("gemini-2.5-flash-lite")
+    model = GenerativeModel("gemini-2.5-flash")
 
     if not os.path.exists(pdf_path):
         print(f"Error: File {pdf_path} not found.")
-        return
+        return []
 
     # Load the PDF file as bytes
     with open(pdf_path, "rb") as f:
@@ -49,8 +53,9 @@ def parse_athlete_pdf(pdf_path: str, output_json_path: str, project_id: str, spo
 
     # System instructions to enforce hackathon rules during extraction
     instructions = (
-        f"Extract athlete information for the sport '{sport_name}' ONLY from the provided PDF. "
-        "Ignore athletes from other sports. Format as a JSON list of objects.\n\n"
+        f"Thoroughly extract ALL athlete information for the sport '{sport_name}' from the provided PDF. "
+        "The athletes are listed alphabetically. Continue extracting names until the end of the document or a clear new section (which should not occur if the PDF is correctly pre-filtered for this sport). "
+        "Ignore athletes from other sports if any are present (though they should not be). Format the output as a JSON list of objects.\n\n"
         "STRICT RULES:\n"
         "1. Keys: 'name' (string), 'sport' (string), 'hometown' (string or null), 'participation_years' (list of integers, e.g., [2004, 2008]).\n"
         "2. If data is missing, use null."
@@ -60,23 +65,31 @@ def parse_athlete_pdf(pdf_path: str, output_json_path: str, project_id: str, spo
 
     # Create parts for the multimodal request
     pdf_part = Part.from_data(data=pdf_data, mime_type="application/pdf")
+    print(f"PDF part created for {sport_name}. Size: {len(pdf_data)} bytes.")
     
     print(f"Analyzing PDF: {pdf_path}...")
     
+    if not save_to_json:
+        return []
+
     try:
         response = model.generate_content(
             [instructions, prompt, pdf_part],
             generation_config={"response_mime_type": "application/json"}
         )
         
-        # The 'response_mime_type' configuration ensures Gemini returns valid JSON
         athlete_data = json.loads(response.text)
-        
-        # Save to file
-        with open(output_json_path, "w", encoding="utf-8") as f:
-            json.dump(athlete_data, f, indent=4)
-            
-        print(f"Successfully parsed {len(athlete_data)} records into {output_json_path}")
+        if athlete_data:
+            print(f"First athlete in {sport_name}: {athlete_data[0].get('name', 'N/A')}")
+            print(f"Last athlete in {sport_name}: {athlete_data[-1].get('name', 'N/A')}")
+        else:
+            print(f"No athletes found for {sport_name}.")
+
+        if output_json_path:
+            with open(output_json_path, "w", encoding="utf-8") as f:
+                json.dump(athlete_data, f, indent=4)
+            print(f"Successfully parsed {len(athlete_data)} records and saved to {output_json_path}")
+
         return athlete_data
     except Exception as e:
         print(f"An error occurred during parsing: {e}")
@@ -150,8 +163,12 @@ if __name__ == "__main__":
             else:
                 print(f"Using existing PDF for {sport}: {page_pdf_path}")
             
-            # Parse the sport PDF with a specific filter for that sport
-            data = parse_athlete_pdf(page_pdf_path, page_json_path, PROJECT, sport)
+            # Parse the sport PDF. We set save_to_json=True to enable the model call.
+            # We pass output_json_path=None here to avoid double-writing, 
+            # as we handle the deduplicated save below.
+            data = parse_athlete_pdf(
+                page_pdf_path, PROJECT, sport, save_to_json=True, output_json_path=None
+            )
             
             if data:
                 # Filter duplicates across the entire run based on name and sport
@@ -162,6 +179,14 @@ if __name__ == "__main__":
                         seen_athletes.add(key)
                         unique_data.append(athlete)
                 
-                # Save deduplicated data back to the file
-                with open(page_json_path, "w", encoding="utf-8") as f:
-                    json.dump(unique_data, f, indent=4)
+                # The JSON is already saved by parse_athlete_pdf if save_to_json was True
+                # If further deduplication is needed, it should be applied to the file after initial save
+                # For now, we assume the initial save is sufficient or deduplication happens elsewhere.
+                # If the intent is to save the *deduplicated* data, the saving logic needs to be here.
+                # Re-saving the deduplicated data:
+                if unique_data:
+                    with open(page_json_path, "w", encoding="utf-8") as f:
+                        json.dump(unique_data, f, indent=4)
+                    print(f"Successfully deduplicated and saved {len(unique_data)} unique records to {page_json_path}")
+                else:
+                    print(f"No unique data found for {sport} after deduplication.")

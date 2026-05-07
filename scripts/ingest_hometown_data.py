@@ -3,10 +3,10 @@ import json
 import re
 import logging
 import shutil
+from dotenv import load_dotenv
 import pandas as pd
 from google.cloud import bigquery
 from google.api_core.exceptions import NotFound
-from dotenv import load_dotenv
 
 # Load environment variables from .env file at the start of the script
 load_dotenv()
@@ -21,6 +21,10 @@ def generate_nil_safe_id(athlete: dict) -> str:
     name = athlete.get('name') or "Unknown"
     sport = athlete.get('sport') or "Unknown"
     years = athlete.get('participation_years') or []
+    hometown = athlete.get('hometown') or "Unknown"
+
+    # 0. Hometown Slug (Accounting for the hometown field)
+    ht_slug = re.sub(r'[^a-z0-9]', '', hometown.lower())[:8]
 
     # 1. Sport Initial
     sport_initial = sport[0].upper() if sport else "U"
@@ -42,29 +46,38 @@ def generate_nil_safe_id(athlete: dict) -> str:
     appearance_count = len(found_years)
     first_year = min(found_years) if found_years else "0000"
 
-    base_id = f"{sport_initial}-{first_init}-{last_init}-{first_year}-{appearance_count}"
+    base_id = f"{ht_slug}-{sport_initial}-{first_init}-{last_init}-{first_year}-{appearance_count}"
     return base_id
 
-def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list, update_file_path: str = None, location: str = "US"):
+def is_valid_hometown_format(hometown_str: str) -> bool:
     """
-    Demonstrates populating the Hometown Heroes database with enriched,
-    aggregated athlete data.
+    Checks if the hometown string is in the format "City, State".
+    """
+    if not isinstance(hometown_str, str):
+        return False
+    # This regex checks for at least one character, a comma, optional whitespace, and then at least one more character.
+    return re.match(r'^[^,]+,\s*[^,]+$', hometown_str.strip()) is not None
+
+def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list, location: str = "US"):
+    """
+    Ingests enriched athlete data into BigQuery.
 
     Args:
         project_id: The Google Cloud project ID.
         dataset_id: The BigQuery dataset ID.
         olympians_data: A list of dictionaries, where each dict represents an Olympian
                         with at least 'name', 'hometown', and 'sport'.
-        update_file_path: Optional path to update the source JSON with crawled hometowns.
         location: The geographic location for the dataset (e.g., 'US' or 'EU').
+    Returns:
+        None. Data is ingested into BigQuery.
     """
     client = bigquery.Client(project=project_id)
-    table_ref = f"{project_id}.{dataset_id}.athletes_raw"
+    table_ref = f"{project_id}.{dataset_id}.athletes"
 
-    # Define the schema once for table creation and streaming verification
+    # Define the schema for the BigQuery table
     schema = [
         bigquery.SchemaField("athlete_id", "STRING"),
-        bigquery.SchemaField("athlete_name", "STRING"), # Added for Gemini enrichment context
+        bigquery.SchemaField("athlete_name", "STRING"),
         bigquery.SchemaField("sport", "STRING"),
         bigquery.SchemaField("hometown", "STRING"),
         bigquery.SchemaField("load_timestamp", "TIMESTAMP"),
@@ -80,52 +93,47 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
         client.create_dataset(dataset)
         logging.info(f"Created new dataset: {dataset_id}")
 
-    # 2. Process each athlete: ID generation
-    newly_processed_athletes = [] # Initialize the list here
+    # Process each athlete: ID generation and prepare for BigQuery
+    rows_to_insert = []
     for athlete in olympians_data:
-        # a. Generate NIL-Safe ID first to check for existence
-        # Note: If this is a repeat athlete, generate_nil_safe_id will yield the same ID
         athlete['athlete_id'] = generate_nil_safe_id(athlete)
-
-        athlete_name = athlete.get('name')
-        # We now defer hometown enrichment to BigQuery ML using ML.GENERATE_TEXT
         
-        # 3. Batching Streaming Inserts for better performance
+        original_hometown = athlete.get('hometown')
+        validated_hometown = None
+        if original_hometown and is_valid_hometown_format(original_hometown):
+            validated_hometown = original_hometown
+        else:
+            logging.warning(f"Invalid hometown format for athlete '{athlete.get('name')}': '{original_hometown}'. Setting to NULL for BigQuery insertion.")
+
         row_to_insert = {
             "athlete_id": athlete['athlete_id'],
-            "athlete_name": athlete.get('name'), # Temporary context for BQML
-            "sport": athlete['sport'],
-            "hometown": athlete.get('hometown'),
+            "athlete_name": athlete.get('name'),
+            "sport": athlete.get('sport'),
+            "hometown": validated_hometown, # Use the validated hometown
             "load_timestamp": pd.Timestamp.now(tz='UTC')
         }
-        newly_processed_athletes.append(row_to_insert)
+        rows_to_insert.append(row_to_insert)
 
-    # 4. Perform a Batch Load for the current JSON file
-    # Batch loads bypass the streaming buffer, allowing immediate DML (UPDATEs)
-    if newly_processed_athletes:
-        df_new = pd.DataFrame(newly_processed_athletes)
+    # Perform a Batch Load for the current JSON file
+    if rows_to_insert:
+        df_new = pd.DataFrame(rows_to_insert)
         job_config = bigquery.LoadJobConfig(
             schema=schema,
-            write_disposition="WRITE_APPEND",
+            write_disposition="WRITE_APPEND", # Append new data to the table
         )
 
-        logging.info(f"Loading {len(df_new)} records into staging table {table_ref}...")
+        logging.info(f"Loading {len(df_new)} records into BigQuery table {table_ref}...")
         job = client.load_table_from_dataframe(df_new, table_ref, job_config=job_config)
         job.result()  # Wait for the load to complete
-        logging.info(f"Successfully loaded {len(df_new)} athletes.")
+        logging.info(f"Successfully loaded {len(df_new)} athletes into BigQuery.")
     else:
-        logging.info("No new athletes found in this file to ingest.")
-
-    logging.info("Ingestion process completed.")
+        logging.info("No new athletes found in this file to ingest into BigQuery.")
 
 if __name__ == "__main__":
     PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
-    
     if not PROJECT:
         raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set. Please set it to your Google Cloud Project ID.")
 
-    # Example: Processing a specific JSON file from the parser output
-    # Updated to look for the provided Table Tennis sample or fallback to Baseball
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     OUTPUT_DIR = os.path.join(SCRIPT_DIR, "resources", "output")
     PROCESSED_DIR = os.path.join(SCRIPT_DIR, "resources", "processed")
@@ -140,7 +148,11 @@ if __name__ == "__main__":
             logging.info(f"Processing {target_file}...")
             with open(target_file, "r", encoding="utf-8") as f:
                 athletes = json.load(f)
-            ingest_hometown_data(PROJECT, "team_usa_data", athletes, update_file_path=target_file)
+            
+            # Ingest data into BigQuery
+            ingest_hometown_data(PROJECT, "team_usa_data", athletes)
+            
+            # Move the processed file to the processed directory
             shutil.move(target_file, os.path.join(PROCESSED_DIR, json_file))
             logging.info(f"Successfully moved {json_file} to {PROCESSED_DIR}")
     else:

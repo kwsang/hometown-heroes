@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import logging
 import time
 import vertexai
@@ -34,7 +35,7 @@ def get_hometown_via_gemini(athlete_name: str, sport: str, model: GenerativeMode
     Handles 429 (Too Many Requests) errors with exponential backoff.
     """
     prompt = (
-        f"Identify the official hometown (City, State) of the Team USA athlete: {athlete_name}. "
+        f"Identify the official hometown (City, State) of the Team USA Olympics athlete: {athlete_name}. "
         f"Sport: {sport}. "
         "Return ONLY the 'City, State' string using the full state name (e.g., 'Boulder, Colorado'). If the hometown is unknown, return 'null'."
     )
@@ -89,8 +90,8 @@ def main():
         updated_count = 0
         for athlete in athletes:
             hometown_val = athlete.get('hometown')
-            # Only query if hometown is missing or explicitly 'null' string
-            if not hometown_val or str(hometown_val).lower() == 'null':
+            # Only query if hometown is missing, explicitly 'null' string, or doesn't match 'City, State' pattern
+            if not hometown_val or str(hometown_val).lower() == 'null' or not re.match(r'^[^,]+,\s*[^,]+$', str(hometown_val)):
                 name = athlete.get('name')
                 sport = athlete.get('sport')
                 hometown = get_hometown_via_gemini(name, sport, model)
