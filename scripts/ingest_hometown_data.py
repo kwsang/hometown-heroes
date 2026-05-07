@@ -2,6 +2,7 @@ import os
 import json
 import re
 import logging
+import shutil
 import pandas as pd
 from google.cloud import bigquery
 from google.api_core.exceptions import NotFound
@@ -16,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 def generate_nil_safe_id(athlete: dict, seen_ids: set) -> str:
     """
-    Generates an NIL-safe identifier: <Sport Initial><First Initial><Last Initial><Appearance Count>.
+    Generates an NIL-safe identifier: <Sport Initial>-<First Initial>-<Last Initial>-<Year First Competed>-<Appearance Count>.
     Handles duplicates by appending a counter.
     """
     name = athlete.get('name') or "Unknown"
@@ -28,17 +29,18 @@ def generate_nil_safe_id(athlete: dict, seen_ids: set) -> str:
 
     # 2. Extract Initials (First and Last)
     name_parts = re.sub(r'[^a-zA-Z\s]', '', name).split()
-    initials = (name_parts[0][0] if len(name_parts) > 0 else "U") + \
-               (name_parts[-1][0] if len(name_parts) > 1 else "")
-    initials = initials.upper()
+    first_init = name_parts[0][0].upper() if len(name_parts) > 0 else "U"
+    last_init = name_parts[-1][0].upper() if len(name_parts) > 1 else "U"
 
-    # 3. Extract Count of appearances
+    # 3. Extract Count of appearances and year first appeared
     found_years = []
     for y_str in years:
         found_years.extend([int(y) for y in re.findall(r'\d{4}', str(y_str))])
-    appearance_count = len(found_years)
 
-    base_id = f"{sport_initial}{initials}{appearance_count}"
+    appearance_count = len(found_years)
+    first_year = min(found_years) if found_years else "0000"
+
+    base_id = f"{sport_initial}-{first_init}-{last_init}-{first_year}-{appearance_count}"
     final_id = base_id
     counter = 1
     while final_id in seen_ids:
@@ -166,6 +168,9 @@ if __name__ == "__main__":
     # Updated to look for the provided Table Tennis sample or fallback to Baseball
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     OUTPUT_DIR = os.path.join(SCRIPT_DIR, "resources", "output")
+    PROCESSED_DIR = os.path.join(SCRIPT_DIR, "resources", "processed")
+
+    os.makedirs(PROCESSED_DIR, exist_ok=True)
     
     json_files = [f for f in os.listdir(OUTPUT_DIR) if f.endswith('.json')]
     
@@ -176,5 +181,7 @@ if __name__ == "__main__":
             with open(target_file, "r", encoding="utf-8") as f:
                 athletes = json.load(f)
             ingest_hometown_data(PROJECT, "team_usa_data", athletes, update_file_path=target_file)
+            shutil.move(target_file, os.path.join(PROCESSED_DIR, json_file))
+            logging.info(f"Successfully moved {json_file} to {PROCESSED_DIR}")
     else:
         print(f"No JSON files found in {OUTPUT_DIR}")
