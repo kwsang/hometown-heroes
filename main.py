@@ -33,8 +33,7 @@ async def hubs_page():
         {"id": "gainesville", "city": "Gainesville, FL", "lat": 29.6516, "lng": -82.3248, "description": "Known for its aquatic sports programs and warm climate, ideal for year-round training."}
     ]
     
-    # IMPORTANT: Replace 'YOUR_GOOGLE_MAPS_API_KEY' with your actual API key
-    google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY", "AIzaSyCn0x_YF7x68AJjD3sAwwKfadKK5CikZSk")
+    google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY",)
     return render_hubs_page(hubs, google_maps_api_key)
 
 @app.get("/api/v1/hubs/{region_id}")
