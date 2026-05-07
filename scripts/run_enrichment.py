@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 def run_chunked_enrichment(project_id: str, dataset_id: str, chunk_size: int = 25):
     client = bigquery.Client(project=project_id)
     staging_ref = f"{project_id}.{dataset_id}.athletes_raw"
-    production_ref = f"{project_id}.{dataset_id}.athletes"
+    production_ref = f"{project_id}.{dataset_id}.athletes_data"
     model_ref = f"{project_id}.{dataset_id}.gemini_hometown_model"
 
     # Ensure the production table exists before starting enrichment
@@ -26,13 +26,23 @@ def run_chunked_enrichment(project_id: str, dataset_id: str, chunk_size: int = 2
             bigquery.SchemaField("load_timestamp", "TIMESTAMP"),
         ]
         table = bigquery.Table(production_ref, schema=schema)
-        # Cluster by athlete_id to make the NOT IN exclusion check highly efficient
-        table.clustering_fields = ["athlete_id"]
         client.create_table(table)
         logging.info(f"Successfully created production table: {production_ref}")
 
-    # This script uses an 'Exclusion Pattern' instead of 'Deletion'.
-    # It avoids DML on the staging table, preventing streaming buffer conflicts.
+    # Step 1: Promote athletes who already have hometowns directly to production
+    # This avoids using Gemini for records that are already complete.
+    move_existing_query = f"""
+    INSERT INTO `{production_ref}` (athlete_id, sport, hometown, load_timestamp)
+    SELECT athlete_id, sport, hometown, CURRENT_TIMESTAMP()
+    FROM `{staging_ref}`
+    WHERE (hometown IS NOT NULL AND hometown != '' AND LOWER(hometown) != 'null')
+      AND athlete_id NOT IN (SELECT athlete_id FROM `{production_ref}`)
+    """
+    logging.info("Promoting athletes with existing hometowns directly to production...")
+    client.query(move_existing_query).result()
+
+    # This script uses a materialization pattern to isolate chunks.
+    # It minimizes 'Records Read' and avoids streaming buffer conflicts on the input.
     promote_script = f"""
     -- 1. Isolate the chunk to process into a temporary work table
     CREATE OR REPLACE TEMP TABLE current_work_chunk AS
@@ -47,8 +57,9 @@ def run_chunked_enrichment(project_id: str, dataset_id: str, chunk_size: int = 2
             'Return ONLY the "City, State". If unknown, return "null".'
         ) AS prompt
     FROM `{staging_ref}`
-    -- Only pick athletes who haven't been promoted to the production table yet
-    WHERE athlete_id NOT IN (SELECT athlete_id FROM `{production_ref}`)
+    -- Only pick athletes who haven't been promoted AND don't have a hometown yet
+    WHERE (hometown IS NULL OR hometown = '' OR LOWER(hometown) = 'null')
+      AND athlete_id NOT IN (SELECT athlete_id FROM `{production_ref}`)
     LIMIT {chunk_size};
 
     -- 2. Enrich and promote directly to production
@@ -64,7 +75,10 @@ def run_chunked_enrichment(project_id: str, dataset_id: str, chunk_size: int = 2
       STRUCT(0.1 AS temperature, 100 AS max_output_tokens)
     ) res;
 
-    -- 3. Return the count for the Python monitor
+    -- 3. Remove processed rows from staging so they aren't scanned in the next iteration
+    DELETE FROM `{staging_ref}` WHERE athlete_id IN (SELECT athlete_id FROM current_work_chunk);
+
+    -- 4. Return the count for the Python monitor
     SELECT COUNT(*) as processed_count FROM current_work_chunk;
     """
 
