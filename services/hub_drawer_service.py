@@ -1,3 +1,5 @@
+from services import ai_insights_service
+
 def get_drawer_html() -> str:
     """Returns the HTML structure for the hub details side drawer."""
     return """
@@ -48,15 +50,7 @@ def get_drawer_js() -> str:
                         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
                 </div>
-
-                <div id="narrative-container" class="bg-blue-50 p-6 rounded-2xl border border-blue-100 mb-8">
-                    <h3 class="text-sm font-bold text-blue-900 mb-2 flex items-center">
-                        <span class="mr-2">✨</span> AI Insights
-                    </h3>
-                    <p id="narrative-text" class="text-blue-900 leading-relaxed italic opacity-80 text-sm animate-pulse">
-                        Generating regional narrative...
-                    </p>
-                </div>
+                """ + ai_insights_service.get_insights_html() + """
             `;
             
             try {

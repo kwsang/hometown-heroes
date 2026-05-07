@@ -5,6 +5,7 @@ from services.gemini_service import GeminiNarrativeService
 from services.bigquery_service import BigQueryService
 from services.frontend_service import render_landing_page, render_hub_detail_page
 from services.map_service import render_hubs_page
+from services.ai_insights_service import AIInsightsService
 from dotenv import load_dotenv
 
 # Ensure environment variables are loaded before initializing services
@@ -19,6 +20,7 @@ if not PROJECT_ID:
 
 gemini_engine = GeminiNarrativeService(project_id=PROJECT_ID)
 data_engine = BigQueryService(project_id=PROJECT_ID)
+insights_engine = AIInsightsService(project_id=PROJECT_ID)
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -69,18 +71,8 @@ async def get_hub_stats(hometown_id: str):
 @app.get("/api/v1/hubs/{hometown_id}/narrative")
 async def get_hub_narrative(hometown_id: str):
     try:
-        stats = data_engine.get_aggregate_hub_stats(hometown_id)
-        if not stats:
-            raise HTTPException(status_code=404, detail="Hub not found")
-        
-        elevation = stats[0].get("regional_elevation", "Unknown") if stats else "Unknown"
-        climate_mock = {
-            "avg_elevation": f"{elevation}m" if elevation != "Unknown" else elevation,
-            "notable_features": "Local terrain and climate conditions relevant to sport excellence."
-        }
-
-        narrative = await gemini_engine.generate_hub_narrative(hometown_id, stats, climate_mock)
-        
+        # Use the specialized AI Insights service to handle narrative generation
+        narrative = await insights_engine.get_narrative(hometown_id)
         return {
             "narrative": narrative
         }
@@ -90,21 +82,10 @@ async def get_hub_narrative(hometown_id: str):
 @app.get("/api/v1/hubs/{hometown_id}")
 async def get_hub_details(hometown_id: str):
     try:
-        # 1. Get Aggregate Data from BigQuery
         stats = data_engine.get_aggregate_hub_stats(hometown_id)
         if not stats:
             raise HTTPException(status_code=404, detail="Hub not found")
-        
-        # Extract real elevation from BigQuery results if available to replace the mock
-        elevation = stats[0].get("regional_elevation", "Unknown") if stats else "Unknown"
-        
-        climate_mock = {
-            "avg_elevation": f"{elevation}m" if elevation != "Unknown" else elevation,
-            "notable_features": "Local terrain and climate conditions relevant to sport excellence."
-        }
-
-        narrative = await gemini_engine.generate_hub_narrative(hometown_id, stats, climate_mock)
-        
+        narrative = await insights_engine.get_narrative(hometown_id)
         return {
             "hub": hometown_id,
             "statistics": stats,
