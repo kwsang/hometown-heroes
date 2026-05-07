@@ -79,6 +79,14 @@ def process_geocoding_service(project_id: str, dataset_id: str):
         logging.info("No raw athlete data found to process.")
         return
 
+    # Initialize enrichment columns to ensure they exist in the schema
+    # This prevents KeyError if dropna is called before they are populated
+    df_raw['lat'] = None
+    df_raw['lng'] = None
+    df_raw['regional_elevation'] = None
+    df_raw['hometown_id'] = None
+    df_raw['region'] = None
+
     hometown_registry_table_ref = f"{project_id}.{dataset_id}.hometown_registry"
     try:
         df_registry = client.query(f"SELECT * FROM `{hometown_registry_table_ref}`").to_dataframe()
@@ -87,9 +95,15 @@ def process_geocoding_service(project_id: str, dataset_id: str):
         logging.warning(f"hometown_registry table not found. Starting with empty registry. Error: {e}")
         df_registry = pd.DataFrame(columns=['hometown', 'total_athletes', 'sports', 'load_timestamp', 'lat', 'lng', 'regional_elevation', 'hometown_id', 'region'])
 
+    # Ensure enrichment columns exist in df_registry to avoid KeyError in dropna
+    for col in ['lat', 'lng', 'regional_elevation', 'hometown_id', 'region']:
+        if col not in df_registry.columns:
+            df_registry[col] = None
+
     geo_cache = {}
     # Pre-populate cache from existing geocoding data in registry to enable "resume" capability
     if not df_registry.empty:
+        # Explicitly check for columns to ensure dropna doesn't fail even if table is empty of these fields
         for _, row in df_registry.dropna(subset=['lat', 'lng']).iterrows():
             geo_cache[row['hometown']] = {
                 'lat': row['lat'], 'lng': row['lng'], 
@@ -145,11 +159,11 @@ def process_geocoding_service(project_id: str, dataset_id: str):
         if geo_cache[ht]:
             new_geocodes_since_save += 1
             
-        if i % 10 == 0 or i == len(unique_hometowns):
+        if i % 25 == 0 or i == len(unique_hometowns):
             logging.info(f"  Geocoding progress: {i}/{len(unique_hometowns)} ({new_geocodes_since_save} new API calls in this session)...")
             
-            # Save progress to the database every 20 successful API calls
-            if new_geocodes_since_save >= 20:
+            # Save progress to the database every 100 successful API calls
+            if new_geocodes_since_save >= 100:
                 persist_registry_progress()
                 new_geocodes_since_save = 0
     
@@ -168,7 +182,7 @@ def process_geocoding_service(project_id: str, dataset_id: str):
         ])
 
     logging.info("Enriching raw athlete data with geocoding results...")
-    df_raw[['lat', 'lng', 'regional_elevation', 'hometown_id', 'region']] = df_raw.apply(enrich, axis=1)
+    df_raw[['lat', 'lng', 'regional_elevation', 'hometown_id', 'region']] = df_raw.apply(enrich, axis=1, result_type='expand')
     
     # 3. Aggregate into Hubs (NIL Compliant)
     df_hubs = df_raw.dropna(subset=['lat', 'lng']).groupby(
