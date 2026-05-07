@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
 from typing import List, Dict, Set
@@ -20,7 +21,7 @@ def parse_athlete_pdf(
     """
     vertexai.init(project=project_id, location=location)
     # Use gemini-2.5-flash-lite for efficient parsing of structured data from PDFs
-    model = GenerativeModel("gemini-2.5-flash")
+    model = GenerativeModel("gemini-2.5-flash-lite")
 
     if not os.path.exists(pdf_path):
         print(f"Error: File {pdf_path} not found.")
@@ -33,12 +34,25 @@ def parse_athlete_pdf(
     # System instructions to enforce hackathon rules during extraction
     instructions = (
         f"Thoroughly extract ALL athlete information for the sport '{sport_name}' from the provided PDF. "
-        "The athletes are arranged in columns positioned from left to right, and the names are listed in alphabetical order. Note that the list can continue onto the next page. "
-        "Continue extracting names until the end of the document or a clear new section (which should not occur if the PDF is correctly pre-filtered for this sport). "
-        "Ignore athletes from other sports if any are present (though they should not be). Format the output as a JSON list of objects.\n\n"
+        "The athletes are arranged in columns positioned from left to right, and the names are listed in alphabetical order. "
+        "Note that the list often continues onto the next column or subsequent page. "
+    )
+    
+    if expected_first:
+        instructions += f" The first athlete in your output MUST be '{expected_first}'."
+    if expected_last:
+        instructions += f" The last athlete in your output MUST be '{expected_last}'."
+        
+    instructions += (
+        " Continue extracting names until you find a clear header indicating a new sport (typically large BLUE or RED text). "
+         "Crucially, participation years often wrap to the next line. Ensure you collect ALL years for an athlete, even if the next athlete's name starts on the line immediately following the wrapped years. "
+        "It is IMPERATIVE that you complete the extraction. To save space, format the output as a JSON list of lists where each inner list represents an athlete: [\"Name\", \"Hometown\", [Year1, Year2]]. "
+        "Do NOT include the sport name in the inner list as it is redundant. "
+        "Ensure the final output is a perfectly valid and complete JSON array. If you think you've reached the end of a section, check at least 5 more entries or the top of the next page to ensure no column transitions were missed. "
+        "Ignore athletes from other sports. Do not include trailing commas or markdown formatting.\n\n"
         "STRICT RULES:\n"
-        "1. Keys: 'name' (string), 'sport' (string), 'hometown' (string or null), 'participation_years' (list of integers, e.g., [2004, 2008]).\n"
-        "2. If data is missing, use null.\n"
+        "1. Format: [[\"NAME, First\", \"City, State\", [2004, 2008]], ...]\n"
+        "2. If hometown is missing, use null.\n"
         "3. Preserve the athlete's name EXACTLY as it appears in the PDF. Do not reformat, normalize, or change the casing (e.g., if 'SMITH, John', keep it as 'SMITH, John')."
     )
 
@@ -56,12 +70,46 @@ def parse_athlete_pdf(
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
         try:
+            print(f"\n--- Gemini Request Context (Attempt {attempt}) ---")
+            print(f"Instructions Snippet: {instructions[:200]}...")
+
             response = model.generate_content(
                 [instructions, prompt, pdf_part],
-                generation_config={"response_mime_type": "application/json"}
+                generation_config={
+                    "response_mime_type": "application/json",
+                    "max_output_tokens": 8192,
+                    "temperature": 0.1,
+                }
             )
             
-            athlete_data = json.loads(response.text)
+            raw_text = response.text.strip()
+            
+            print(f"--- Raw Gemini Response (Length: {len(raw_text)}) ---")
+            print(raw_text)
+            print("--- End of Raw Response ---\n")
+
+            # Clean up potential markdown formatting
+            if raw_text.startswith("```"):
+                raw_text = re.sub(r'^```(?:json)?\s*|\s*```$', '', raw_text, flags=re.MULTILINE).strip()
+            
+            # 1. Fix double/multiple commas: [1, , 2] or [ {...}, , {...} ]
+            raw_text = re.sub(r',(?:\s*,)+', ',', raw_text)
+            
+            # 2. Fix trailing commas: [1, 2, ] -> [1, 2]
+            raw_text = re.sub(r',+\s*([\]}])', r'\1', raw_text)
+
+            compact_data = json.loads(raw_text)
+            
+            # Transform compact array-of-arrays back to the expected list of dictionaries
+            athlete_data = []
+            for item in compact_data:
+                athlete_data.append({
+                    "name": item[0],
+                    "sport": sport_name,
+                    "hometown": item[1],
+                    "participation_years": item[2]
+                })
+
             if athlete_data:
                 actual_first = athlete_data[0].get('name', 'N/A')
                 actual_last = athlete_data[-1].get('name', 'N/A')
@@ -77,12 +125,14 @@ def parse_athlete_pdf(
                         print(f"WARNING: Start boundary mismatch. Expected: '{expected_first}', Got: '{actual_first}'")
                     if end_mismatch:
                         print(f"WARNING: End boundary mismatch. Expected: '{expected_last}', Got: '{actual_last}'")
-                        # Refine instructions for the retry attempt to fix the boundary mismatch
-                        instructions += (
-                            f"\n\nNote for retry: Start from the current boundary ('{actual_last}') and continue from that point to the next athlete "
-                            "(potentially checking the next column or if it's the last column, the next page) and continue until reaching the next sport title."
-                        )
                     
+                    # Refine instructions for the retry attempt to help Gemini recover
+                    instructions += (
+                        f"\n\nNote for retry: Your previous attempt stopped or failed near '{actual_last}'. "
+                        "Please start from that point and ensure you check subsequent columns or pages for remaining athletes "
+                        f"belonging to '{sport_name}' before finishing."
+                    )
+
                     if attempt < max_attempts:
                         print(f"Retrying extraction for {sport_name}...")
                         continue
@@ -93,8 +143,21 @@ def parse_athlete_pdf(
                 print(f"Successfully parsed {len(athlete_data)} records and saved to {output_json_path}")
 
             return athlete_data
+        except json.JSONDecodeError as jde:
+            # Check if the error is likely due to truncation (end of string reached prematurely)
+            if jde.pos >= len(raw_text) - 5:
+                print(f"CRITICAL: JSON response for {sport_name} appears to be TRUNCATED by the model's token limit.")
+                print(f"Total characters received: {len(raw_text)}. Track & Field may be too large for a single request.")
+            
+            print(f"JSON Decode Error for {sport_name} on attempt {attempt}: {jde}")
+            # Print context around the error for debugging
+            start_snippet = max(0, jde.pos - 40)
+            end_snippet = min(len(raw_text), jde.pos + 40)
+            print(f"Context: ...{raw_text[start_snippet:end_snippet]}...")
+            if attempt == max_attempts:
+                return []
         except Exception as e:
-            print(f"An error occurred during parsing on attempt {attempt}: {e}")
+            print(f"Unexpected error during parsing on attempt {attempt}: {e}")
             if attempt == max_attempts:
                 return []
     
@@ -139,60 +202,83 @@ if __name__ == "__main__":
         
         # --- CONVERSION PHASE ---
         print("\n--- Starting PDF to JSON Conversion ---")
-        seen_athletes: Set[tuple] = set()
         
-        for idx, (sport, data) in enumerate(sport_map.items(), 1):
-            pages = data.get("pages", [])
-            # Sanitize filename by replacing slashes and spaces
-            sport_filename = sport.lower().replace(" ", "_").replace("/", "_")
-            page_pdf_path = os.path.join(PAGES_DIR, f"{sport_filename}.pdf")
-            page_json_path = os.path.join(OUTPUT_DIR, f"{idx}_{sport_filename}.json")
+        # 1. Group entries by base sport name to handle multi-part consolidation
+        grouped_sports = {}
+        for sport_key, data in sport_map.items():
+            # Strip " (Part X)" to get the official sport name for Gemini and consolidation
+            base_name = re.sub(r'\s\(Part \d+\)$', '', sport_key)
+            if base_name not in grouped_sports:
+                grouped_sports[base_name] = []
+            grouped_sports[base_name].append((sport_key, data))
 
-            # Check if this sport has already been processed to pick up where we left off
-            if os.path.exists(page_json_path):
-                print(f"Skipping {sport} (already exists at {page_json_path}). Loading athletes for deduplication...")
-                try:
-                    with open(page_json_path, "r", encoding="utf-8") as f:
-                        existing_data = json.load(f)
-                        for athlete in existing_data:
-                            seen_athletes.add((athlete.get('name'), athlete.get('sport')))
-                except Exception as e:
-                    print(f"Warning: Could not read existing file {page_json_path}, will re-process: {e}")
-                else:
-                    continue
+        for base_sport, parts in grouped_sports.items():
+            # Sanitize base filename for consolidated output
+            base_filename = base_sport.lower().replace(" ", "_").replace("/", "_")
+            final_json_path = os.path.join(OUTPUT_DIR, f"{base_filename}.json")
 
-            print(f"\n--- Converting {sport} ---")
-            
-            if not os.path.exists(page_pdf_path):
-                print(f"Warning: PDF segment for {sport} not found. Skipping.")
+            # Check if JSON already exists in either output directories
+            already_exists = False
+            for check_dir in [OUTPUT_DIR]:
+                if os.path.exists(os.path.join(check_dir, f"{base_filename}.json")):
+                    already_exists = True
+                    break
+                # Check for legacy indexed files (e.g., "1_archery.json")
+                if any(f.endswith(f"_{base_filename}.json") and f.split('_')[0].isdigit() for f in os.listdir(check_dir)):
+                    already_exists = True
+                    break
+
+            if already_exists:
+                print(f"Skipping {base_sport} (JSON already exists in output).")
                 continue
-            
-            # Parse the sport PDF. We set save_to_json=True to enable the model call.
-            # We pass output_json_path=None here to avoid double-writing, 
-            # as we handle the deduplicated save below.
-            extracted_athletes = parse_athlete_pdf(
-                page_pdf_path, PROJECT, sport, save_to_json=True, output_json_path=None,
-                expected_first=data.get("first_athlete"),
-                expected_last=data.get("last_athlete")
-            )
-            
-            if extracted_athletes:
-                # Filter duplicates across the entire run based on name and sport
-                unique_data = []
-                for athlete in extracted_athletes:
-                    key = (athlete.get('name'), athlete.get('sport'))
-                    if key not in seen_athletes:
-                        seen_athletes.add(key)
-                        unique_data.append(athlete)
-                
-                # The JSON is already saved by parse_athlete_pdf if save_to_json was True
-                # If further deduplication is needed, it should be applied to the file after initial save
-                # For now, we assume the initial save is sufficient or deduplication happens elsewhere.
-                # If the intent is to save the *deduplicated* data, the saving logic needs to be here.
-                # Re-saving the deduplicated data:
-                if unique_data:
-                    with open(page_json_path, "w", encoding="utf-8") as f:
-                        json.dump(unique_data, f, indent=4)
-                    print(f"Successfully deduplicated and saved {len(unique_data)} unique records to {page_json_path}")
+
+            print(f"\n--- Processing Sport: {base_sport} ---")
+            all_athletes_for_sport = []
+            all_parts_available = True
+
+            for sport_part_name, data in parts:
+                # Sanitize part filename for PDF lookup and caching
+                part_filename = sport_part_name.lower().replace(" ", "_").replace("/", "_")
+                page_pdf_path = os.path.join(PAGES_DIR, f"{part_filename}.pdf")
+                # Temporary file to cache parts for resume-ability
+                part_cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_filename}.json")
+
+                if os.path.exists(part_cache_path):
+                    print(f"  Loading cached data for {sport_part_name}...")
+                    with open(part_cache_path, "r", encoding="utf-8") as f:
+                        part_data = json.load(f)
+                        all_athletes_for_sport.extend(part_data)
                 else:
-                    print(f"No unique data found for {sport} after deduplication.")
+                    if not os.path.exists(page_pdf_path):
+                        print(f"  Warning: PDF segment for {sport_part_name} not found.")
+                        all_parts_available = False
+                        break
+
+                    print(f"  Converting {sport_part_name}...")
+                    extracted = parse_athlete_pdf(
+                        page_pdf_path, PROJECT, base_sport, save_to_json=True, 
+                        output_json_path=part_cache_path,
+                        expected_first=data.get("first_athlete"),
+                        expected_last=data.get("last_athlete")
+                    )
+                    
+                    if extracted:
+                        all_athletes_for_sport.extend(extracted)
+                    else:
+                        print(f"  Error: Failed to extract data for {sport_part_name}.")
+                        all_parts_available = False
+                        break
+
+            if all_parts_available and all_athletes_for_sport:
+                with open(final_json_path, "w", encoding="utf-8") as f:
+                    json.dump(all_athletes_for_sport, f, indent=4)
+                print(f"Successfully consolidated {len(all_athletes_for_sport)} records into {final_json_path}")
+                
+                # Cleanup: Remove temporary cache files after successful consolidation
+                for sport_part_name, _ in parts:
+                    part_fn = sport_part_name.lower().replace(" ", "_").replace("/", "_")
+                    cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_fn}.json")
+                    if os.path.exists(cache_path):
+                        os.remove(cache_path)
+            elif not all_parts_available:
+                print(f"  Consolidation for {base_sport} aborted due to missing parts.")
