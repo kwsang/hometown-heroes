@@ -10,12 +10,12 @@ class BigQueryService:
         """
         query = f"""
             SELECT 
-                region_id as id,
-                region_id as city, 
+                hometown_name as id,
+                hometown_name as city, 
                 lat, 
                 lng,
-                CONCAT('A regional hub fostering Team USA excellence in ', sport_name) as description
-            FROM `{self.client.project}.team_usa_data.hometown_hubs`
+                CONCAT('A collective hub for ', athlete_count, ' Team USA athletes.') as description
+            FROM `{self.client.project}.team_usa_data.location_registry`
         """
         query_job = self.client.query(query)
         return [dict(row) for row in query_job.result()]

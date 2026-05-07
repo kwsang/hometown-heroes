@@ -43,7 +43,7 @@ def process_geocoding_service(project_id: str, dataset_id: str):
     if not api_key: raise ValueError("GOOGLE_MAPS_API_KEY not set.")
 
     # 1. Fetch raw data
-    query = f"SELECT athlete_id, sport, hometown FROM `{project_id}.{dataset_id}.athlete_locations`"
+    query = f"SELECT athlete_id, sport, hometown FROM `{project_id}.{dataset_id}.athletes`"
     df_raw = client.query(query).to_dataframe()
     
     if df_raw.empty:
@@ -91,7 +91,35 @@ def process_geocoding_service(project_id: str, dataset_id: str):
     )
     
     client.load_table_from_dataframe(df_hubs, table_ref, job_config=job_config).result()
-    logging.info(f"Successfully processed {len(df_hubs)} hubs into {table_ref}")
+    logging.info(f"Successfully processed {len(df_hubs)} sport-specific hubs into {table_ref}")
+
+    # 5. Create a dedicated Geographic Summary Table (Regional Registry)
+    # This deduplicates geography for the frontend map and provides total regional counts
+    df_summary = df_raw.dropna(subset=['lat', 'lng']).groupby(
+        ['region_id', 'lat', 'lng', 'regional_elevation']
+    ).agg(
+        total_athlete_count=('athlete_id', 'count'),
+        sports_list=('sport', lambda x: ', '.join(sorted(x.unique())))
+    ).reset_index()
+    
+    df_summary['load_timestamp'] = pd.Timestamp.now(tz='UTC')
+
+    summary_table_ref = f"{project_id}.{dataset_id}.regional_hubs_summary"
+    summary_config = bigquery.LoadJobConfig(
+        schema=[
+            bigquery.SchemaField("region_id", "STRING"),
+            bigquery.SchemaField("lat", "FLOAT"),
+            bigquery.SchemaField("lng", "FLOAT"),
+            bigquery.SchemaField("regional_elevation", "FLOAT"),
+            bigquery.SchemaField("total_athlete_count", "INTEGER"),
+            bigquery.SchemaField("sports_list", "STRING"),
+            bigquery.SchemaField("load_timestamp", "TIMESTAMP"),
+        ],
+        write_disposition="WRITE_TRUNCATE",
+    )
+    
+    client.load_table_from_dataframe(df_summary, summary_table_ref, job_config=summary_config).result()
+    logging.info(f"Successfully created geographic summary table: {summary_table_ref}")
 
 if __name__ == "__main__":
     PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")

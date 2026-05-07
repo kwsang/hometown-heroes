@@ -64,11 +64,12 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
         location: The geographic location for the dataset (e.g., 'US' or 'EU').
     """
     client = bigquery.Client(project=project_id)
-    table_ref = f"{project_id}.{dataset_id}.athlete_locations"
+    table_ref = f"{project_id}.{dataset_id}.athletes"
 
     # Define the schema once for table creation and streaming verification
     schema = [
         bigquery.SchemaField("athlete_id", "STRING"),
+        bigquery.SchemaField("athlete_name", "STRING"), # Added for Gemini enrichment context
         bigquery.SchemaField("sport", "STRING"),
         bigquery.SchemaField("hometown", "STRING"),
         bigquery.SchemaField("load_timestamp", "TIMESTAMP"),
@@ -112,8 +113,6 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
     updated = False
     # Initialize seen_ids with existing IDs to avoid collisions when generating new ones
     seen_ids = set(existing_ids)
-    batch_size = 25
-    batch_to_insert = []
     
     for athlete in olympians_data:
         # a. Generate NIL-Safe ID first to check for existence
@@ -129,27 +128,28 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
         # 3. Batching Streaming Inserts for better performance
         row_to_insert = {
             "athlete_id": athlete['athlete_id'],
+            "athlete_name": athlete.get('name'), # Temporary context for BQML
             "sport": athlete['sport'],
             "hometown": athlete.get('hometown'),
-            "load_timestamp": pd.Timestamp.now(tz='UTC').isoformat()
+            "load_timestamp": pd.Timestamp.now(tz='UTC')
         }
-        batch_to_insert.append(row_to_insert)
+        newly_processed_athletes.append(row_to_insert)
 
-        if len(batch_to_insert) >= batch_size:
-            errors = client.insert_rows_json(table_ref, batch_to_insert)
-            if errors:
-                logging.error(f"Failed to insert batch: {errors}")
-            else:
-                logging.info(f"Successfully inserted batch of {len(batch_to_insert)} athletes into BigQuery.")
-            batch_to_insert = []
+    # 4. Perform a Batch Load for the current JSON file
+    # Batch loads bypass the streaming buffer, allowing immediate DML (UPDATEs)
+    if newly_processed_athletes:
+        df_new = pd.DataFrame(newly_processed_athletes)
+        job_config = bigquery.LoadJobConfig(
+            schema=schema,
+            write_disposition="WRITE_APPEND",
+        )
 
-    # Insert any remaining athletes in the last batch
-    if batch_to_insert:
-        errors = client.insert_rows_json(table_ref, batch_to_insert)
-        if errors:
-            logging.error(f"Failed to insert final batch: {errors}")
-        else:
-            logging.info(f"Successfully inserted final batch of {len(batch_to_insert)} athletes.")
+        logging.info(f"Loading {len(df_new)} records into {table_ref} via Batch Load...")
+        job = client.load_table_from_dataframe(df_new, table_ref, job_config=job_config)
+        job.result()  # Wait for the load to complete
+        logging.info(f"Successfully loaded {len(df_new)} athletes.")
+    else:
+        logging.info("No new athletes found in this file to ingest.")
 
     if updated and update_file_path:
         with open(update_file_path, 'w', encoding='utf-8') as f:
