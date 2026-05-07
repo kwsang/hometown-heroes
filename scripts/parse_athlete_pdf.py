@@ -52,11 +52,8 @@ def parse_athlete_pdf(pdf_path: str, output_json_path: str, project_id: str, spo
         f"Extract athlete information for the sport '{sport_name}' ONLY from the provided PDF. "
         "Ignore athletes from other sports. Format as a JSON list of objects.\n\n"
         "STRICT RULES:\n"
-        "1. Terminology: Use 'Olympic Games [City] [Year]' or 'Olympic Winter Games [City] [Year]'.\n"
-        "2. No 'PAST': Never use 'former' or 'past' Olympian. They are always Olympians.\n"
-        "3. LA28: Use 'LA28 Games'.\n"
-        "4. Keys: 'name', 'sport', 'hometown', 'participation_years'.\n"
-        "5. If data is missing, use null."
+        "1. Keys: 'name' (string), 'sport' (string), 'hometown' (string or null), 'participation_years' (list of integers, e.g., [2004, 2008]).\n"
+        "2. If data is missing, use null."
     )
 
     prompt = f"Convert the athletes listed under the sport '{sport_name}' into a structured JSON list."
@@ -140,14 +137,18 @@ if __name__ == "__main__":
 
             print(f"\n--- Processing {sport} (Pages {pages}) ---")
             
-            # Create a combined PDF for the sport
-            writer = PdfWriter()
-            for p_num in pages:
-                if 1 <= p_num <= len(reader.pages):
-                    writer.add_page(reader.pages[p_num - 1])
-            
-            with open(page_pdf_path, "wb") as f:
-                writer.write(f)
+            if not os.path.exists(page_pdf_path):
+                # Create a combined PDF for the sport
+                writer = PdfWriter()
+                for p_num in pages:
+                    if 1 <= p_num <= len(reader.pages):
+                        writer.add_page(reader.pages[p_num - 1])
+                
+                with open(page_pdf_path, "wb") as f:
+                    writer.write(f)
+                print(f"Created sport-specific PDF: {page_pdf_path}")
+            else:
+                print(f"Using existing PDF for {sport}: {page_pdf_path}")
             
             # Parse the sport PDF with a specific filter for that sport
             data = parse_athlete_pdf(page_pdf_path, page_json_path, PROJECT, sport)

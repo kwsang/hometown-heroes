@@ -6,8 +6,6 @@ import shutil
 import pandas as pd
 from google.cloud import bigquery
 from google.api_core.exceptions import NotFound
-import vertexai
-from vertexai.generative_models import GenerativeModel
 from dotenv import load_dotenv
 
 # Load environment variables from .env file at the start of the script
@@ -15,7 +13,7 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
-def generate_nil_safe_id(athlete: dict, seen_ids: set) -> str:
+def generate_nil_safe_id(athlete: dict) -> str:
     """
     Generates an NIL-safe identifier: <Sport Initial>-<First Initial>-<Last Initial>-<Year First Competed>-<Appearance Count>.
     Handles duplicates by appending a counter.
@@ -34,21 +32,18 @@ def generate_nil_safe_id(athlete: dict, seen_ids: set) -> str:
 
     # 3. Extract Count of appearances and year first appeared
     found_years = []
-    for y_str in years:
-        found_years.extend([int(y) for y in re.findall(r'\d{4}', str(y_str))])
+    # Normalize years to a list for processing, handles both string "2004, 2008" and list [2004, 2008] formats
+    if isinstance(years, str):
+        found_years = [int(y) for y in re.findall(r'\d{4}', years)]
+    elif isinstance(years, list):
+        for y_item in years:
+            found_years.extend([int(y) for y in re.findall(r'\d{4}', str(y_item))])
 
     appearance_count = len(found_years)
     first_year = min(found_years) if found_years else "0000"
 
     base_id = f"{sport_initial}-{first_init}-{last_init}-{first_year}-{appearance_count}"
-    final_id = base_id
-    counter = 1
-    while final_id in seen_ids:
-        counter += 1
-        final_id = f"{base_id}-{counter}"
-    
-    seen_ids.add(final_id)
-    return final_id
+    return base_id
 
 def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list, update_file_path: str = None, location: str = "US"):
     """
@@ -64,7 +59,7 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
         location: The geographic location for the dataset (e.g., 'US' or 'EU').
     """
     client = bigquery.Client(project=project_id)
-    table_ref = f"{project_id}.{dataset_id}.athletes"
+    table_ref = f"{project_id}.{dataset_id}.athletes_raw"
 
     # Define the schema once for table creation and streaming verification
     schema = [
@@ -74,22 +69,6 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
         bigquery.SchemaField("hometown", "STRING"),
         bigquery.SchemaField("load_timestamp", "TIMESTAMP"),
     ]
-
-    # 1. Fetch existing IDs from BigQuery to enable resumption
-    existing_ids = set()
-    try:
-        query_job = client.query(f"SELECT athlete_id FROM `{table_ref}`")
-        results = query_job.result()
-        existing_ids = {row.athlete_id for row in results}
-        logging.info(f"Found {len(existing_ids)} existing records in BigQuery table. Resuming...")
-    except Exception:
-        logging.info("Target table not found or empty. Starting fresh.")
-
-    # Initialize Vertex AI once for the duration of the ingestion process
-    try:
-        vertexai.init(project=project_id)
-    except Exception as e:
-        logging.warning(f"Failed to initialize Vertex AI: {e}")
 
     # Ensure the dataset exists
     dataset_ref = client.dataset(dataset_id)
@@ -101,26 +80,12 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
         client.create_dataset(dataset)
         logging.info(f"Created new dataset: {dataset_id}")
 
-    # Streaming inserts require the table to exist beforehand
-    try:
-        client.get_table(table_ref)
-    except NotFound:
-        table = bigquery.Table(table_ref, schema=schema)
-        client.create_table(table)
-        logging.info(f"Created table: {table_ref}")
-
-    # 2. Process each athlete: ID generation and Crawling (only for new records)
-    updated = False
-    # Initialize seen_ids with existing IDs to avoid collisions when generating new ones
-    seen_ids = set(existing_ids)
-    
+    # 2. Process each athlete: ID generation
+    newly_processed_athletes = [] # Initialize the list here
     for athlete in olympians_data:
         # a. Generate NIL-Safe ID first to check for existence
         # Note: If this is a repeat athlete, generate_nil_safe_id will yield the same ID
-        athlete['athlete_id'] = generate_nil_safe_id(athlete, seen_ids)
-        
-        if athlete['athlete_id'] in existing_ids:
-            continue
+        athlete['athlete_id'] = generate_nil_safe_id(athlete)
 
         athlete_name = athlete.get('name')
         # We now defer hometown enrichment to BigQuery ML using ML.GENERATE_TEXT
@@ -144,17 +109,12 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
             write_disposition="WRITE_APPEND",
         )
 
-        logging.info(f"Loading {len(df_new)} records into {table_ref} via Batch Load...")
+        logging.info(f"Loading {len(df_new)} records into staging table {table_ref}...")
         job = client.load_table_from_dataframe(df_new, table_ref, job_config=job_config)
         job.result()  # Wait for the load to complete
         logging.info(f"Successfully loaded {len(df_new)} athletes.")
     else:
         logging.info("No new athletes found in this file to ingest.")
-
-    if updated and update_file_path:
-        with open(update_file_path, 'w', encoding='utf-8') as f:
-            json.dump(olympians_data, f, indent=4)
-        logging.info(f"Local JSON file '{update_file_path}' has been updated with new location data.")
 
     logging.info("Ingestion process completed.")
 
