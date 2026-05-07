@@ -4,6 +4,10 @@ from fastapi.responses import HTMLResponse
 from services.gemini_service import GeminiNarrativeService
 from services.bigquery_service import BigQueryService
 from services.frontend_service import render_landing_page, render_hubs_page # Removed _get_head_html etc.
+from dotenv import load_dotenv
+
+# Ensure environment variables are loaded before initializing services
+load_dotenv()
 
 app = FastAPI(title="Hometown Heroes API")
 
