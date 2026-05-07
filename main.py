@@ -3,7 +3,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from services.gemini_service import GeminiNarrativeService
 from services.bigquery_service import BigQueryService
-from services.frontend_service import render_landing_page, render_hubs_page, render_hub_detail_page
+from services.frontend_service import render_landing_page, render_hub_detail_page
+from services.map_service import render_hubs_page
 from dotenv import load_dotenv
 
 # Ensure environment variables are loaded before initializing services
