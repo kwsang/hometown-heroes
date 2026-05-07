@@ -24,11 +24,15 @@ def determine_region(hometown: str) -> str:
     # Split by comma and take the last part (the state/country candidate)
     state_part = hometown.split(',')[-1].strip()
     
+    # Strip quotes and trailing punctuation that cause lookup failures
+    state_part = state_part.strip("'\".").strip()
+    
     for region_name, states in REGION_MAPPING.items():
-        if state_part in states:
+        # Perform case-insensitive check against the region mapping
+        if any(state_part.lower() == s.lower() for s in states):
             return region_name
             
-    return 'foreign born'
+    return 'Global'
 
 def get_geocode_data(hometown: str, api_key: str) -> dict:
     if not hometown: return {}
@@ -48,7 +52,8 @@ def get_geocode_data(hometown: str, api_key: str) -> dict:
             elev_data = elev_resp.json()
             elevation = elev_data['results'][0]['elevation'] if elev_data['status'] == 'OK' else None
             
-            hometown_id = hometown.lower().replace(' ', '-').replace(',', '').replace('.', '')
+            # Clean the ID generation by removing quotes as well as spaces and dots
+            hometown_id = hometown.lower().replace(' ', '-').replace(',', '').replace('.', '').replace("'", "").replace('"', '')
             region = determine_region(hometown)
             return {'lat': lat, 'lng': lng, 'elevation': elevation, 'hometown_id': hometown_id, 'region': region}
         else:
@@ -65,7 +70,8 @@ def process_geocoding_service(project_id: str, dataset_id: str):
     api_key = os.getenv("GOOGLE_MAPS_API_KEY")
     if not api_key: raise ValueError("GOOGLE_MAPS_API_KEY not set.")
 
-    # 1. Fetch raw data
+    # 1. Fetch raw data and current registry to save progress and avoid redundant API calls
+    logging.info("Fetching raw athlete data and existing registry...")
     query = f"SELECT athlete_id, sport, hometown FROM `{project_id}.{dataset_id}.athletes`"
     df_raw = client.query(query).to_dataframe()
     
@@ -73,21 +79,91 @@ def process_geocoding_service(project_id: str, dataset_id: str):
         logging.info("No raw athlete data found to process.")
         return
 
-    # 2. Geocode Unique Hometowns (Caching)
-    unique_hometowns = df_raw['hometown'].dropna().unique()
-    logging.info(f"Geocoding {len(unique_hometowns)} unique hometowns from raw data...")
+    hometown_registry_table_ref = f"{project_id}.{dataset_id}.hometown_registry"
+    try:
+        df_registry = client.query(f"SELECT * FROM `{hometown_registry_table_ref}`").to_dataframe()
+        logging.info(f"Loaded {len(df_registry)} records from hometown_registry.")
+    except Exception as e:
+        logging.warning(f"hometown_registry table not found. Starting with empty registry. Error: {e}")
+        df_registry = pd.DataFrame(columns=['hometown', 'total_athletes', 'sports', 'load_timestamp', 'lat', 'lng', 'regional_elevation', 'hometown_id', 'region'])
+
     geo_cache = {}
-    for i, ht in enumerate(unique_hometowns, 1):
-        geo_cache[ht] = get_geocode_data(ht, api_key)
-        if i % 10 == 0 or i == len(unique_hometowns):
-            logging.info(f"  Raw data geocoding progress: {i}/{len(unique_hometowns)}...")
+    # Pre-populate cache from existing geocoding data in registry to enable "resume" capability
+    if not df_registry.empty:
+        for _, row in df_registry.dropna(subset=['lat', 'lng']).iterrows():
+            geo_cache[row['hometown']] = {
+                'lat': row['lat'], 'lng': row['lng'], 
+                'elevation': row['regional_elevation'], 
+                'hometown_id': row['hometown_id'], 
+                'region': row['region']
+            }
+    logging.info(f"Initialized cache with {len(geo_cache)} existing geocodes.")
+
+    def persist_registry_progress():
+        """Internal helper to save current geocoding results to BigQuery."""
+        logging.info("  --- Saving geocoding progress to BigQuery registry ---")
+        # Update df_registry from cache
+        for index, row in df_registry.iterrows():
+            ht = row['hometown']
+            if ht in geo_cache and geo_cache[ht] and 'lat' in geo_cache[ht]:
+                geo = geo_cache[ht]
+                df_registry.at[index, 'lat'] = geo.get('lat')
+                df_registry.at[index, 'lng'] = geo.get('lng')
+                df_registry.at[index, 'regional_elevation'] = geo.get('elevation')
+                df_registry.at[index, 'hometown_id'] = geo.get('hometown_id')
+                df_registry.at[index, 'region'] = geo.get('region')
+        
+        registry_schema = [
+            bigquery.SchemaField("hometown", "STRING"),
+            bigquery.SchemaField("total_athletes", "INTEGER"),
+            bigquery.SchemaField("sports", "RECORD", mode="REPEATED", fields=[
+                bigquery.SchemaField("sport", "STRING"),
+                bigquery.SchemaField("count", "INTEGER"),
+            ]),
+            bigquery.SchemaField("load_timestamp", "TIMESTAMP"),
+            bigquery.SchemaField("lat", "FLOAT", mode="NULLABLE"),
+            bigquery.SchemaField("lng", "FLOAT", mode="NULLABLE"),
+            bigquery.SchemaField("regional_elevation", "FLOAT", mode="NULLABLE"),
+            bigquery.SchemaField("hometown_id", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("region", "STRING", mode="NULLABLE"),
+        ]
+        job_config = bigquery.LoadJobConfig(schema=registry_schema, write_disposition="WRITE_TRUNCATE")
+        client.load_table_from_dataframe(df_registry, hometown_registry_table_ref, job_config=job_config).result()
+
+    # 2. Comprehensive Geocoding Phase
+    # Get all unique hometowns that need geocoding from both athletes and registry
+    unique_hometowns = sorted(list(set(df_raw['hometown'].dropna().unique()).union(set(df_registry['hometown'].dropna().unique()))))
+    logging.info(f"Analyzing {len(unique_hometowns)} total unique hometowns...")
     
+    new_geocodes_since_save = 0
+    for i, ht in enumerate(unique_hometowns, 1):
+        # Skip if we already have the data in our cache
+        if ht in geo_cache and geo_cache[ht].get('lat'):
+            continue
+            
+        geo_cache[ht] = get_geocode_data(ht, api_key)
+        if geo_cache[ht]:
+            new_geocodes_since_save += 1
+            
+        if i % 10 == 0 or i == len(unique_hometowns):
+            logging.info(f"  Geocoding progress: {i}/{len(unique_hometowns)} ({new_geocodes_since_save} new API calls in this session)...")
+            
+            # Save progress to the database every 20 successful API calls
+            if new_geocodes_since_save >= 20:
+                persist_registry_progress()
+                new_geocodes_since_save = 0
+    
+    # Final geocoding persistence
+    if new_geocodes_since_save > 0:
+        persist_registry_progress()
+
     def enrich(row):
         geo = geo_cache.get(row['hometown'], {})
         ht_str = str(row['hometown']) if row['hometown'] else ""
         return pd.Series([
             geo.get('lat'), geo.get('lng'), geo.get('elevation'),
-            geo.get('hometown_id', ht_str.lower().replace(' ', '-').replace(',', '').replace('.', '')),
+            # Clean the ID fallback generation by removing quotes
+            geo.get('hometown_id', ht_str.lower().replace(' ', '-').replace(',', '').replace('.', '').replace("'", "").replace('"', '')),
             geo.get('region', determine_region(ht_str))
         ])
 
@@ -130,7 +206,7 @@ def process_geocoding_service(project_id: str, dataset_id: str):
         ['hometown_id', 'region', 'lat', 'lng', 'regional_elevation']
     ).agg(
         total_athlete_count=('athlete_id', 'count'),
-        sports_list=('sport', lambda x: ', '.join(sorted(x.unique())))
+        sports=('sport', lambda x: [{"sport": s, "count": int(c)} for s, c in sorted(x.value_counts().items())])
     ).reset_index()
     
     df_summary['load_timestamp'] = pd.Timestamp.now(tz='UTC')
@@ -144,7 +220,10 @@ def process_geocoding_service(project_id: str, dataset_id: str):
             bigquery.SchemaField("lng", "FLOAT"),
             bigquery.SchemaField("regional_elevation", "FLOAT"),
             bigquery.SchemaField("total_athlete_count", "INTEGER"),
-            bigquery.SchemaField("sports_list", "STRING"),
+            bigquery.SchemaField("sports", "RECORD", mode="REPEATED", fields=[
+                bigquery.SchemaField("sport", "STRING"),
+                bigquery.SchemaField("count", "INTEGER"),
+            ]),
             bigquery.SchemaField("load_timestamp", "TIMESTAMP"),
         ],
         write_disposition="WRITE_TRUNCATE",
@@ -152,70 +231,6 @@ def process_geocoding_service(project_id: str, dataset_id: str):
     
     client.load_table_from_dataframe(df_summary, summary_table_ref, job_config=summary_config).result()
     logging.info(f"Successfully created geographic summary table: {summary_table_ref}")
-
-    # 6. Update hometown_registry table with geocoding data
-    logging.info("Updating hometown_registry table with geocoding data...")
-    hometown_registry_table_ref = f"{project_id}.{dataset_id}.hometown_registry"
-    
-    try:
-        # Fetch existing hometown_registry data
-        # BigQuery's to_dataframe() handles REPEATED RECORD fields correctly
-        df_registry = client.query(f"SELECT hometown, total_athletes, sports, load_timestamp FROM `{hometown_registry_table_ref}`").to_dataframe()
-    except Exception as e:
-        logging.warning(f"hometown_registry table not found or empty. Skipping geocoding for registry. Error: {e}")
-        df_registry = pd.DataFrame(columns=['hometown', 'total_athletes', 'sports', 'load_timestamp'])
-
-    if df_registry.empty:
-        logging.info("No data in hometown_registry to geocode.")
-    else:
-        # Geocode unique hometowns from the registry
-        unique_registry_hometowns = df_registry['hometown'].dropna().unique()
-        logging.info(f"Geocoding {len(unique_registry_hometowns)} unique hometowns from registry...")
-        registry_geo_cache = {}
-        for i, ht in enumerate(unique_registry_hometowns, 1):
-            registry_geo_cache[ht] = get_geocode_data(ht, api_key)
-            if i % 10 == 0 or i == len(unique_registry_hometowns):
-                logging.info(f"  Registry geocoding progress: {i}/{len(unique_registry_hometowns)}...")
-
-        # Add geocoding data to the registry DataFrame
-        df_registry['lat'] = None
-        df_registry['lng'] = None
-        df_registry['regional_elevation'] = None
-        df_registry['hometown_id'] = None
-        df_registry['region'] = None
-
-        logging.info("Updating registry DataFrame with geocoding data...")
-        total_rows = len(df_registry)
-        for i, (index, row) in enumerate(df_registry.iterrows(), 1):
-            hometown = row['hometown']
-            geo = registry_geo_cache.get(hometown, {})
-            df_registry.at[index, 'lat'] = geo.get('lat')
-            df_registry.at[index, 'lng'] = geo.get('lng')
-            df_registry.at[index, 'regional_elevation'] = geo.get('elevation')
-            df_registry.at[index, 'hometown_id'] = geo.get('hometown_id')
-            df_registry.at[index, 'region'] = geo.get('region')
-            if i % 50 == 0 or i == total_rows:
-                logging.info(f"  Registry enrichment progress: {i}/{total_rows}...")
-
-        # Define schema for hometown_registry with new fields
-        registry_schema = [
-            bigquery.SchemaField("hometown", "STRING"),
-            bigquery.SchemaField("total_athletes", "INTEGER"),
-            bigquery.SchemaField("sports", "RECORD", mode="REPEATED", fields=[
-                bigquery.SchemaField("sport", "STRING"),
-                bigquery.SchemaField("count", "INTEGER"),
-            ]),
-            bigquery.SchemaField("load_timestamp", "TIMESTAMP"),
-            bigquery.SchemaField("lat", "FLOAT", mode="NULLABLE"),
-            bigquery.SchemaField("lng", "FLOAT", mode="NULLABLE"),
-            bigquery.SchemaField("regional_elevation", "FLOAT", mode="NULLABLE"),
-            bigquery.SchemaField("hometown_id", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("region", "STRING", mode="NULLABLE"),
-        ]
-
-        registry_job_config = bigquery.LoadJobConfig(schema=registry_schema, write_disposition="WRITE_TRUNCATE")
-        client.load_table_from_dataframe(df_registry, hometown_registry_table_ref, job_config=registry_job_config).result()
-        logging.info(f"Successfully updated {len(df_registry)} records in {hometown_registry_table_ref} with geocoding data.")
 
 if __name__ == "__main__":
     PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
