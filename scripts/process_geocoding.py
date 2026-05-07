@@ -14,6 +14,7 @@ def get_geocode_data(hometown: str, api_key: str) -> dict:
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     try:
         resp = requests.get(base_url, params={"address": hometown.strip(), "key": api_key})
+        resp.raise_for_status()
         data = resp.json()
         if data['status'] == 'OK' and data['results']:
             loc = data['results'][0]['geometry']['location']
@@ -21,13 +22,19 @@ def get_geocode_data(hometown: str, api_key: str) -> dict:
             
             elev_resp = requests.get("https://maps.googleapis.com/maps/api/elevation/json", 
                                      params={"locations": f"{lat},{lng}", "key": api_key})
+            elev_resp.raise_for_status()
             elev_data = elev_resp.json()
             elevation = elev_data['results'][0]['elevation'] if elev_data['status'] == 'OK' else None
             
             region_id = hometown.lower().replace(' ', '-').replace(',', '').replace('.', '')
             return {'lat': lat, 'lng': lng, 'elevation': elevation, 'region_id': region_id}
+        else:
+            error_msg = data.get('error_message', 'No additional details provided.')
+            logging.error(f"Geocoding failed for '{hometown}': {data.get('status')} - {error_msg}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"API request failed for '{hometown}': {e}")
     except Exception as e:
-        logging.error(f"Geocoding error for {hometown}: {e}")
+        logging.error(f"Unexpected geocoding error for {hometown}: {e}")
     return {}
 
 def process_geocoding_service(project_id: str, dataset_id: str):

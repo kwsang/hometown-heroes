@@ -5,9 +5,6 @@ import logging
 import pandas as pd
 from google.cloud import bigquery
 from google.api_core.exceptions import NotFound
-import requests
-from bs4 import BeautifulSoup
-import time
 import vertexai
 from vertexai.generative_models import GenerativeModel
 from dotenv import load_dotenv
@@ -17,72 +14,28 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
-def crawl_hometown(athlete_name: str, project_id: str = None) -> str:
+def get_hometown_via_gemini(athlete_name: str, project_id: str) -> str:
     """
-    Attempts to retrieve an athlete's hometown from their Team USA profile.
+    Uses Gemini 2.5 Pro to identify an athlete's hometown.
     """
-    headers = {'User-Agent': 'Mozilla/5.0'}
-
-    def extract_from_soup(soup):
-        # Team USA profiles often store hometown in a specific metadata div or span
-        hometown_tag = soup.find('div', string=re.compile('Hometown', re.I))
-        if hometown_tag and hometown_tag.find_next_sibling():
-            return hometown_tag.find_next_sibling().get_text(strip=True)
-        
-        # Fallback: check for common bio patterns
-        bio_section = soup.find('div', class_='athlete-profile__bio')
-        if bio_section:
-            match = re.search(r'Hometown:\s*([^<]+)', str(bio_section))
-            if match:
-                return match.group(1).strip()
+    if not project_id:
+        logging.error("Project ID is required to use Gemini for hometown lookup.")
         return None
 
-    # Create a URL slug: "John Doe" -> "john-doe"
-    slug = re.sub(r'[^a-z0-9]+', '-', athlete_name.lower()).strip('-')
-    url = f"https://www.teamusa.com/athletes/{slug}"
-    
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            hometown = extract_from_soup(BeautifulSoup(response.text, 'html.parser'))
-            if hometown:
-                return hometown
-
-        # Fallback: Query the search page as requested
-        search_query = re.sub(r'[^a-z0-9]+', '-', athlete_name.lower()).strip('-')
-        search_url = f"https://www.teamusa.com/search?q={search_query}"
-        logging.info(f"Direct lookup failed for {athlete_name}. Attempting site search: {search_url}")
-        
-        search_response = requests.get(search_url, headers=headers, timeout=10)
-        if search_response.status_code == 200:
-            search_soup = BeautifulSoup(search_response.text, 'html.parser')
-            # Find the first link that looks like a profile link
-            profile_link = search_soup.find('a', href=re.compile(r'/(profiles|athletes)/'))
-            if profile_link:
-                profile_url = profile_link['href']
-                if not profile_url.startswith('http'):
-                    profile_url = f"https://www.teamusa.com{profile_url}"
-                
-                logging.info(f"Found profile via search: {profile_url}")
-                profile_response = requests.get(profile_url, headers=headers, timeout=10)
-                if profile_response.status_code == 200:
-                    return extract_from_soup(BeautifulSoup(profile_response.text, 'html.parser'))
-
+        # Using gemini-2.5-pro for its superior reasoning on public figures
+        model = GenerativeModel("gemini-2.5-pro")
+        prompt = (
+            f"Identify the official hometown (City, State) of the Team USA athlete '{athlete_name}'. "
+            "Return ONLY the 'City, State' string. If the hometown is unknown, return 'null'."
+        )
+        response = model.generate_content(prompt)
+        if response.text and "null" not in response.text.lower():
+            hometown = response.text.strip()
+            logging.info(f"Hometown found for {athlete_name} via Gemini: {hometown}")
+            return hometown
     except Exception as e:
-        logging.warning(f"Could not crawl profile for {athlete_name}: {e}")
-
-    # Final Fallback: Ask Gemini
-    if project_id:
-        logging.info(f"Web crawl failed for {athlete_name}. Falling back to Gemini reasoning.")
-        try:
-            # Using gemini-2.5-pro as per project requirements
-            model = GenerativeModel("gemini-2.5-pro")
-            prompt = f"What is the official hometown (City, State) of the Team USA Olympian/Paralympian {athlete_name}? Return ONLY the City, State string or 'null' if unknown."
-            response = model.generate_content(prompt)
-            if response.text and "null" not in response.text.lower():
-                return response.text.strip()
-        except Exception as e:
-            logging.warning(f"Gemini fallback failed for {athlete_name}: {e}")
+        logging.warning(f"Gemini lookup failed for {athlete_name}: {e}")
 
     return None
 
@@ -191,8 +144,8 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
 
         athlete_name = athlete.get('name')
         if not athlete.get('hometown'):
-            logging.info(f"Missing hometown for {athlete_name}. Attempting to crawl...")
-            hometown = crawl_hometown(athlete_name, project_id=project_id)
+            logging.info(f"Missing hometown for {athlete_name}. Querying Gemini...")
+            hometown = get_hometown_via_gemini(athlete_name, project_id)
             if hometown:
                 athlete['hometown'] = hometown
                 updated = True
