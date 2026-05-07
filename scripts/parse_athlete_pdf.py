@@ -206,8 +206,8 @@ if __name__ == "__main__":
         # 1. Group entries by base sport name to handle multi-part consolidation
         grouped_sports = {}
         for sport_key, data in sport_map.items():
-            # Strip " (Part X)" to get the official sport name for Gemini and consolidation
-            base_name = re.sub(r'\s\(Part \d+\)$', '', sport_key)
+            # Strip ALL existing " (Part X)" suffixes to get the official sport name
+            base_name = re.sub(r'(\s\(Part \d+\))+', '', sport_key)
             if base_name not in grouped_sports:
                 grouped_sports[base_name] = []
             grouped_sports[base_name].append((sport_key, data))
@@ -230,6 +230,14 @@ if __name__ == "__main__":
 
             if already_exists:
                 print(f"Skipping {base_sport} (JSON already exists in output).")
+                # Cleanup any orphaned cache files if the final file exists
+                for sport_part_name, _ in parts:
+                    part_fn = sport_part_name.lower().replace(" ", "_").replace("/", "_")
+                    # Check for both .json (legacy cache) and .tmp extensions
+                    for ext in [".json", ".tmp"]:
+                        cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_fn}{ext}")
+                        if os.path.exists(cache_path):
+                            os.remove(cache_path)
                 continue
 
             print(f"\n--- Processing Sport: {base_sport} ---")
@@ -240,8 +248,8 @@ if __name__ == "__main__":
                 # Sanitize part filename for PDF lookup and caching
                 part_filename = sport_part_name.lower().replace(" ", "_").replace("/", "_")
                 page_pdf_path = os.path.join(PAGES_DIR, f"{part_filename}.pdf")
-                # Temporary file to cache parts for resume-ability
-                part_cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_filename}.json")
+                # Use .tmp extension to prevent ingestion scripts from picking up partial data
+                part_cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_filename}.tmp")
 
                 if os.path.exists(part_cache_path):
                     print(f"  Loading cached data for {sport_part_name}...")
@@ -277,7 +285,7 @@ if __name__ == "__main__":
                 # Cleanup: Remove temporary cache files after successful consolidation
                 for sport_part_name, _ in parts:
                     part_fn = sport_part_name.lower().replace(" ", "_").replace("/", "_")
-                    cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_fn}.json")
+                    cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_fn}.tmp")
                     if os.path.exists(cache_path):
                         os.remove(cache_path)
             elif not all_parts_available:

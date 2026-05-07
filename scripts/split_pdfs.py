@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from pypdf import PdfReader, PdfWriter
 from dotenv import load_dotenv
 from typing import Dict
@@ -47,25 +48,44 @@ if __name__ == "__main__":
         with open(SPORT_MAP_FILE, "r", encoding="utf-8") as f:
             sport_map = json.load(f)
 
-        # --- CHUNKING LOGIC ---
-        # Large sports (like Track & Field) exceed Gemini's output token limit for JSON responses.
-        # We split these into manageable segments (max 1 page per PDF segment).
-        MAX_PAGES = 1
-        chunked_map = {}
+        # --- CONSOLIDATION & CHUNKING LOGIC ---
+        MAX_PAGES = 5
+        
+        # 1. Consolidate existing parts back to base sports to prevent nesting
+        consolidated_source = {}
+        for sport_key, data in sport_map.items():
+            base_name = re.sub(r'(\s\(Part \d+\))+', '', sport_key)
+            if base_name not in consolidated_source:
+                consolidated_source[base_name] = {
+                    "pages": [],
+                    "first_athlete": None,
+                    "last_athlete": None
+                }
+            
+            # Merge pages and ensure they are sorted
+            page_set = set(consolidated_source[base_name]["pages"])
+            page_set.update(data.get("pages", []))
+            consolidated_source[base_name]["pages"] = sorted(list(page_set))
+            
+            # Preserve boundary athletes if present
+            if data.get("first_athlete"):
+                consolidated_source[base_name]["first_athlete"] = data["first_athlete"]
+            if data.get("last_athlete"):
+                consolidated_source[base_name]["last_athlete"] = data["last_athlete"]
 
-        for sport, data in sport_map.items():
+        # 2. Re-apply chunking logic to the consolidated data
+        chunked_map = {}
+        for base_sport, data in consolidated_source.items():
             pages = data.get("pages", [])
             if len(pages) <= MAX_PAGES:
-                chunked_map[sport] = data
+                chunked_map[base_sport] = data
             else:
-                print(f"Sport {sport} spans {len(pages)} pages. Splitting into chunks of {MAX_PAGES}...")
-                # Split page list into sub-lists of size MAX_PAGES
+                print(f"Sport {base_sport} spans {len(pages)} pages. Splitting into chunks of {MAX_PAGES}...")
                 chunks = [pages[i:i + MAX_PAGES] for i in range(0, len(pages), MAX_PAGES)]
                 for i, chunk_pages in enumerate(chunks):
-                    part_name = f"{sport} (Part {i+1})"
+                    part_name = f"{base_sport} (Part {i+1})"
                     chunked_map[part_name] = {
                         "pages": chunk_pages,
-                        # Boundary verification only works for the global start and global end
                         "first_athlete": data.get("first_athlete") if i == 0 else None,
                         "last_athlete": data.get("last_athlete") if i == len(chunks) - 1 else None
                     }
