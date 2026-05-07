@@ -3,38 +3,17 @@ import json
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
 from typing import List, Dict, Set
-from pypdf import PdfReader, PdfWriter
+from pypdf import PdfReader
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
-def get_sport_mapping(pdf_path: str, project_id: str, location: str = "us-central1") -> Dict[str, List[int]]:
-    """
-    Uses Gemini to identify which pages contain which sports.
-    Returns a mapping of sport names to 1-based page numbers.
-    """
-    vertexai.init(project=project_id, location=location)
-    model = GenerativeModel("gemini-2.5-flash-lite")
-    
-    with open(pdf_path, "rb") as f:
-        pdf_data = f.read()
-    
-    pdf_part = Part.from_data(data=pdf_data, mime_type="application/pdf")
-    prompt = (
-        "Thoroughly analyze this Team USA athlete directory to create a comprehensive sport-to-page index. "
-        "Return a JSON mapping where keys are official sport names and values are arrays of ALL 1-based page numbers "
-        "where that sport's athletes are listed.\n\n"
-        "CRITICAL BOUNDARY RULES:\n"
-        "1. Identify the exact page where a sport starts (look for large section headers) and the exact page where it ends.\n"
-        "2. Include EVERY page in the range. For example, if 'Soccer' begins on page 53 and continues through 57, "
-        "the list must be [53, 54, 55, 56, 57]. Do not omit the start or end pages."
-    )
-    
-    response = model.generate_content([prompt, pdf_part], generation_config={"response_mime_type": "application/json"})
-    return json.loads(response.text)
-
-def parse_athlete_pdf(pdf_path: str, project_id: str, sport_name: str, location: str = "us-central1", save_to_json: bool = False, output_json_path: str = None) -> List[Dict]:
+def parse_athlete_pdf(
+    pdf_path: str, project_id: str, sport_name: str, location: str = "us-central1", 
+    save_to_json: bool = False, output_json_path: str = None,
+    expected_first: str = None, expected_last: str = None
+) -> List[Dict]:
     """
     Uses Gemini 2.5 Flash Lite to parse a PDF for a specific sport into a structured JSON format.
     Ensures compliance with strict terminology and data formatting rules.
@@ -54,11 +33,13 @@ def parse_athlete_pdf(pdf_path: str, project_id: str, sport_name: str, location:
     # System instructions to enforce hackathon rules during extraction
     instructions = (
         f"Thoroughly extract ALL athlete information for the sport '{sport_name}' from the provided PDF. "
-        "The athletes are listed alphabetically. Continue extracting names until the end of the document or a clear new section (which should not occur if the PDF is correctly pre-filtered for this sport). "
+        "The athletes are arranged in columns positioned from left to right, and the names are listed in alphabetical order. Note that the list can continue onto the next page. "
+        "Continue extracting names until the end of the document or a clear new section (which should not occur if the PDF is correctly pre-filtered for this sport). "
         "Ignore athletes from other sports if any are present (though they should not be). Format the output as a JSON list of objects.\n\n"
         "STRICT RULES:\n"
         "1. Keys: 'name' (string), 'sport' (string), 'hometown' (string or null), 'participation_years' (list of integers, e.g., [2004, 2008]).\n"
-        "2. If data is missing, use null."
+        "2. If data is missing, use null.\n"
+        "3. Preserve the athlete's name EXACTLY as it appears in the PDF. Do not reformat, normalize, or change the casing (e.g., if 'SMITH, John', keep it as 'SMITH, John')."
     )
 
     prompt = f"Convert the athletes listed under the sport '{sport_name}' into a structured JSON list."
@@ -72,28 +53,52 @@ def parse_athlete_pdf(pdf_path: str, project_id: str, sport_name: str, location:
     if not save_to_json:
         return []
 
-    try:
-        response = model.generate_content(
-            [instructions, prompt, pdf_part],
-            generation_config={"response_mime_type": "application/json"}
-        )
-        
-        athlete_data = json.loads(response.text)
-        if athlete_data:
-            print(f"First athlete in {sport_name}: {athlete_data[0].get('name', 'N/A')}")
-            print(f"Last athlete in {sport_name}: {athlete_data[-1].get('name', 'N/A')}")
-        else:
-            print(f"No athletes found for {sport_name}.")
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = model.generate_content(
+                [instructions, prompt, pdf_part],
+                generation_config={"response_mime_type": "application/json"}
+            )
+            
+            athlete_data = json.loads(response.text)
+            if athlete_data:
+                actual_first = athlete_data[0].get('name', 'N/A')
+                actual_last = athlete_data[-1].get('name', 'N/A')
+                print(f"Attempt {attempt} - First athlete in {sport_name}: {actual_first}")
+                print(f"Attempt {attempt} - Last athlete in {sport_name}: {actual_last}")
 
-        if output_json_path:
-            with open(output_json_path, "w", encoding="utf-8") as f:
-                json.dump(athlete_data, f, indent=4)
-            print(f"Successfully parsed {len(athlete_data)} records and saved to {output_json_path}")
+                # Verify extracted boundaries against the sport_map
+                start_mismatch = expected_first and actual_first != expected_first
+                end_mismatch = expected_last and actual_last != expected_last
 
-        return athlete_data
-    except Exception as e:
-        print(f"An error occurred during parsing: {e}")
-        return []
+                if start_mismatch or end_mismatch:
+                    if start_mismatch:
+                        print(f"WARNING: Start boundary mismatch. Expected: '{expected_first}', Got: '{actual_first}'")
+                    if end_mismatch:
+                        print(f"WARNING: End boundary mismatch. Expected: '{expected_last}', Got: '{actual_last}'")
+                        # Refine instructions for the retry attempt to fix the boundary mismatch
+                        instructions += (
+                            f"\n\nNote for retry: Start from the current boundary ('{actual_last}') and continue from that point to the next athlete "
+                            "(potentially checking the next column or if it's the last column, the next page) and continue until reaching the next sport title."
+                        )
+                    
+                    if attempt < max_attempts:
+                        print(f"Retrying extraction for {sport_name}...")
+                        continue
+
+            if output_json_path:
+                with open(output_json_path, "w", encoding="utf-8") as f:
+                    json.dump(athlete_data, f, indent=4)
+                print(f"Successfully parsed {len(athlete_data)} records and saved to {output_json_path}")
+
+            return athlete_data
+        except Exception as e:
+            print(f"An error occurred during parsing on attempt {attempt}: {e}")
+            if attempt == max_attempts:
+                return []
+    
+    return []
 
 if __name__ == "__main__":
     # Configuration
@@ -123,13 +128,21 @@ if __name__ == "__main__":
     if not os.path.exists(INPUT_PDF):
         print(f"Error: Source PDF not found at {INPUT_PDF}")
     else:
-        print(f"Analyzing sport mapping for: {INPUT_PDF}")
-        sport_map = get_sport_mapping(INPUT_PDF, PROJECT)
+        SPORT_MAP_FILE = os.path.join(RESOURCES_DIR, "sport_map.json")
+        if not os.path.exists(SPORT_MAP_FILE):
+            print(f"Error: Sport mapping file not found at {SPORT_MAP_FILE}.")
+            print("Please run 'generate_sport_map.py' first to create the sport mapping.")
+            exit()
         
-        reader = PdfReader(INPUT_PDF)
+        with open(SPORT_MAP_FILE, "r", encoding="utf-8") as f:
+            sport_map = json.load(f)
+        
+        # --- CONVERSION PHASE ---
+        print("\n--- Starting PDF to JSON Conversion ---")
         seen_athletes: Set[tuple] = set()
         
-        for idx, (sport, pages) in enumerate(sport_map.items(), 1):
+        for idx, (sport, data) in enumerate(sport_map.items(), 1):
+            pages = data.get("pages", [])
             # Sanitize filename by replacing slashes and spaces
             sport_filename = sport.lower().replace(" ", "_").replace("/", "_")
             page_pdf_path = os.path.join(PAGES_DIR, f"{sport_filename}.pdf")
@@ -140,40 +153,33 @@ if __name__ == "__main__":
                 print(f"Skipping {sport} (already exists at {page_json_path}). Loading athletes for deduplication...")
                 try:
                     with open(page_json_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        for athlete in data:
+                        existing_data = json.load(f)
+                        for athlete in existing_data:
                             seen_athletes.add((athlete.get('name'), athlete.get('sport')))
                 except Exception as e:
                     print(f"Warning: Could not read existing file {page_json_path}, will re-process: {e}")
                 else:
                     continue
 
-            print(f"\n--- Processing {sport} (Pages {pages}) ---")
+            print(f"\n--- Converting {sport} ---")
             
             if not os.path.exists(page_pdf_path):
-                # Create a combined PDF for the sport
-                writer = PdfWriter()
-                for p_num in pages:
-                    if 1 <= p_num <= len(reader.pages):
-                        writer.add_page(reader.pages[p_num - 1])
-                
-                with open(page_pdf_path, "wb") as f:
-                    writer.write(f)
-                print(f"Created sport-specific PDF: {page_pdf_path}")
-            else:
-                print(f"Using existing PDF for {sport}: {page_pdf_path}")
+                print(f"Warning: PDF segment for {sport} not found. Skipping.")
+                continue
             
             # Parse the sport PDF. We set save_to_json=True to enable the model call.
             # We pass output_json_path=None here to avoid double-writing, 
             # as we handle the deduplicated save below.
-            data = parse_athlete_pdf(
-                page_pdf_path, PROJECT, sport, save_to_json=True, output_json_path=None
+            extracted_athletes = parse_athlete_pdf(
+                page_pdf_path, PROJECT, sport, save_to_json=True, output_json_path=None,
+                expected_first=data.get("first_athlete"),
+                expected_last=data.get("last_athlete")
             )
             
-            if data:
+            if extracted_athletes:
                 # Filter duplicates across the entire run based on name and sport
                 unique_data = []
-                for athlete in data:
+                for athlete in extracted_athletes:
                     key = (athlete.get('name'), athlete.get('sport'))
                     if key not in seen_athletes:
                         seen_athletes.add(key)
