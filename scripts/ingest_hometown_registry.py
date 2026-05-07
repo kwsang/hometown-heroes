@@ -27,6 +27,11 @@ def ingest_hometown_registry(project_id: str, dataset_id: str):
             bigquery.SchemaField("sport", "STRING"),
             bigquery.SchemaField("count", "INTEGER"),
         ]),
+        bigquery.SchemaField("lat", "FLOAT", mode="NULLABLE"),
+        bigquery.SchemaField("lng", "FLOAT", mode="NULLABLE"),
+        bigquery.SchemaField("regional_elevation", "FLOAT", mode="NULLABLE"),
+        bigquery.SchemaField("hometown_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("region", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("load_timestamp", "TIMESTAMP"),
     ]
 
@@ -66,7 +71,12 @@ def ingest_hometown_registry(project_id: str, dataset_id: str):
             "hometown": hometown,
             "total_athletes": data.get("total_athletes", 0),
             "sports": sports_list,
-            "load_timestamp": pd.Timestamp.now(tz='UTC').isoformat()
+            "lat": None,  # Will be populated by process_geocoding.py
+            "lng": None,  # Will be populated by process_geocoding.py
+            "regional_elevation": None,  # Will be populated by process_geocoding.py
+            "hometown_id": None,  # Will be populated by process_geocoding.py
+            "region": None,  # Will be populated by process_geocoding.py
+            "load_timestamp": pd.Timestamp.now(tz='UTC').isoformat(),
         })
 
     if not rows:
