@@ -166,7 +166,7 @@ class HubService:
 
         # 5. Summary Aggregation
         df_summary = df_raw.dropna(subset=['lat', 'lng']).groupby(
-            ['hometown_id', 'region', 'lat', 'lng', 'regional_elevation']
+            ['hometown_id', 'hometown', 'region', 'lat', 'lng', 'regional_elevation']
         ).agg(
             total_athlete_count=('athlete_id', 'count'),
             sports=('sport', lambda x: [{"sport": s, "count": int(c)} for s, c in sorted(x.value_counts().items())])
@@ -200,6 +200,7 @@ class HubService:
             job_config=bigquery.LoadJobConfig(
                 schema=[
                     bigquery.SchemaField("hometown_id", "STRING"),
+                    bigquery.SchemaField("hometown", "STRING"),
                     bigquery.SchemaField("region", "STRING"),
                     bigquery.SchemaField("lat", "FLOAT"),
                     bigquery.SchemaField("lng", "FLOAT"),

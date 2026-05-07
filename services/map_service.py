@@ -32,13 +32,17 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
 
     legend_items = "".join([
         f"""
-        <div class="flex items-center space-x-2">
+        <button 
+            onclick="toggleRegion('{name}')" 
+            data-region-btn="{name}"
+            class="flex items-center space-x-2 px-3 py-2 rounded-xl transition-all duration-200 border border-transparent hover:bg-white hover:shadow-sm"
+        >
             <span class="w-3 h-3 rounded-full" style="background-color: {color};"></span>
             <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{name}</span>
-        </div>
+        </button>
         """ for name, color in region_colors.items()
     ])
-    legend_html = f'<div class="flex flex-wrap gap-x-6 gap-y-3 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">{legend_items}</div>'
+    legend_html = f'<div class="flex flex-wrap gap-x-4 gap-y-2 mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-100">{legend_items}</div>'
 
     return f"""
     <!DOCTYPE html>
@@ -59,6 +63,8 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
             <div id="map" style="height: 600px; width: 100%; border-radius: 1rem; margin-bottom: 2rem;"></div>
             <script>
                 let map;
+                const markers = [];
+                const selectedRegions = new Set();
                 const hubs = [
                     {hubs_js}
                 ];
@@ -84,6 +90,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                         mapId: "HOMETOWN_HEROES_MAP", // You can create a custom map style in Google Cloud Console
                         disableDefaultUI: true,
                         zoomControl: true,
+                        gestureHandling: 'greedy',
                     }});
 
                     hubs.forEach(hub => {{
@@ -99,10 +106,42 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                             title: hub.city,
                             content: pin.element,
                         }});
+                        
+                        marker.region = hub.region;
+                        markers.push(marker);
 
                         marker.addListener("click", () => {{
                             openDrawer(hub.id, hub.pretty_city_name);
                         }});
+                    }});
+                }}
+
+                window.toggleRegion = (region) => {{
+                    if (selectedRegions.has(region)) {{
+                        selectedRegions.delete(region);
+                    }} else {{
+                        selectedRegions.add(region);
+                    }}
+                    updateFilters();
+                }};
+
+                function updateFilters() {{
+                    const btns = document.querySelectorAll('[data-region-btn]');
+                    const isFiltering = selectedRegions.size > 0;
+
+                    btns.forEach(btn => {{
+                        const region = btn.getAttribute('data-region-btn');
+                        const isActive = selectedRegions.has(region);
+
+                        btn.classList.toggle('bg-white', isActive);
+                        btn.classList.toggle('shadow-sm', isActive);
+                        btn.classList.toggle('border-slate-200', isActive);
+                        btn.style.opacity = (!isFiltering || isActive) ? "1" : "0.4";
+                        btn.style.filter = (!isFiltering || isActive) ? "none" : "grayscale(100%)";
+                    }});
+
+                    markers.forEach(m => {{
+                        m.map = (!isFiltering || selectedRegions.has(m.region)) ? map : null;
                     }});
                 }}
                 {hub_drawer_service.get_drawer_js()}

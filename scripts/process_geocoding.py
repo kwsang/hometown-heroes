@@ -1,6 +1,11 @@
 import os
+import sys
 import logging
 from dotenv import load_dotenv
+
+# Add the project root directory to the Python path to resolve the 'services' module
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from services.hub_service import HubService
 
 load_dotenv()
