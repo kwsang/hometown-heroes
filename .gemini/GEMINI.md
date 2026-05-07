@@ -13,7 +13,7 @@ Build a tool that identifies "Hubs" by correlating geography with the sports Tea
 Only .md files in .gemini folder.
 Services go in the services/ folder.
 My project name: My First Project
-My Google project ID: project-9fa42176-1f4a-4c0d-ba8
+My Google project ID: your-project-id
 Generative Model: gemini-2.5-pro
 
 ### Data

@@ -83,7 +83,7 @@ def parse_athlete_pdf(pdf_path: str, output_json_path: str, project_id: str, spo
 
 if __name__ == "__main__":
     # Configuration
-    PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "project-9fa42176-1f4a-4c0d-ba8")
+    PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "your-project-id")  # set as env variable
 
     # Calculate absolute paths relative to this script's directory
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
