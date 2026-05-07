@@ -14,52 +14,31 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
-def get_hometown_via_gemini(athlete_name: str, project_id: str) -> str:
-    """
-    Uses Gemini 2.5 Pro to identify an athlete's hometown.
-    """
-    if not project_id:
-        logging.error("Project ID is required to use Gemini for hometown lookup.")
-        return None
-
-    try:
-        # Using gemini-2.5-pro for its superior reasoning on public figures
-        model = GenerativeModel("gemini-2.5-pro")
-        prompt = (
-            f"Identify the official hometown (City, State) of the Team USA athlete '{athlete_name}'. "
-            "Return ONLY the 'City, State' string. If the hometown is unknown, return 'null'."
-        )
-        response = model.generate_content(prompt)
-        if response.text and "null" not in response.text.lower():
-            hometown = response.text.strip()
-            logging.info(f"Hometown found for {athlete_name} via Gemini: {hometown}")
-            return hometown
-    except Exception as e:
-        logging.warning(f"Gemini lookup failed for {athlete_name}: {e}")
-
-    return None
-
 def generate_nil_safe_id(athlete: dict, seen_ids: set) -> str:
     """
-    Generates an NIL-safe identifier: <First Initial><Last Initial><Year First Competed>.
+    Generates an NIL-safe identifier: <Sport Initial><First Initial><Last Initial><Appearance Count>.
     Handles duplicates by appending a counter.
     """
     name = athlete.get('name') or "Unknown"
+    sport = athlete.get('sport') or "Unknown"
     years = athlete.get('participation_years') or []
 
-    # 1. Extract Initials (First and Last)
+    # 1. Sport Initial
+    sport_initial = sport[0].upper() if sport else "U"
+
+    # 2. Extract Initials (First and Last)
     name_parts = re.sub(r'[^a-zA-Z\s]', '', name).split()
     initials = (name_parts[0][0] if len(name_parts) > 0 else "U") + \
                (name_parts[-1][0] if len(name_parts) > 1 else "")
     initials = initials.upper()
 
-    # 2. Extract Earliest Year
+    # 3. Extract Count of appearances
     found_years = []
     for y_str in years:
         found_years.extend([int(y) for y in re.findall(r'\d{4}', str(y_str))])
-    first_year = str(min(found_years)) if found_years else "0000"
+    appearance_count = len(found_years)
 
-    base_id = f"{initials}{first_year}"
+    base_id = f"{sport_initial}{initials}{appearance_count}"
     final_id = base_id
     counter = 1
     while final_id in seen_ids:
@@ -131,7 +110,7 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
     updated = False
     # Initialize seen_ids with existing IDs to avoid collisions when generating new ones
     seen_ids = set(existing_ids)
-    batch_size = 10
+    batch_size = 25
     batch_to_insert = []
     
     for athlete in olympians_data:
@@ -143,15 +122,7 @@ def ingest_hometown_data(project_id: str, dataset_id: str, olympians_data: list,
             continue
 
         athlete_name = athlete.get('name')
-        if not athlete.get('hometown'):
-            logging.info(f"Missing hometown for {athlete_name}. Querying Gemini...")
-            hometown = get_hometown_via_gemini(athlete_name, project_id)
-            if hometown:
-                athlete['hometown'] = hometown
-                updated = True
-                logging.info(f"Successfully updated '{athlete_name}' with location: {hometown}")
-            else:
-                logging.warning(f"Could not retrieve hometown for {athlete_name}. Proceeding with null value.")
+        # We now defer hometown enrichment to BigQuery ML using ML.GENERATE_TEXT
         
         # 3. Batching Streaming Inserts for better performance
         row_to_insert = {
@@ -199,11 +170,11 @@ if __name__ == "__main__":
     json_files = [f for f in os.listdir(OUTPUT_DIR) if f.endswith('.json')]
     
     if json_files:
-        target_file = os.path.join(OUTPUT_DIR, json_files[0]) # Process the first found file
-        print(f"Processing {target_file}...")
-        with open(target_file, "r", encoding="utf-8") as f:
-            athletes = json.load(f)
-        
-        ingest_hometown_data(PROJECT, "team_usa_data", athletes, update_file_path=target_file)
+        for json_file in json_files:
+            target_file = os.path.join(OUTPUT_DIR, json_file)
+            logging.info(f"Processing {target_file}...")
+            with open(target_file, "r", encoding="utf-8") as f:
+                athletes = json.load(f)
+            ingest_hometown_data(PROJECT, "team_usa_data", athletes, update_file_path=target_file)
     else:
         print(f"No JSON files found in {OUTPUT_DIR}")

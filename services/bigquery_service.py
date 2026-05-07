@@ -4,6 +4,22 @@ class BigQueryService:
     def __init__(self, project_id: str):
         self.client = bigquery.Client(project=project_id)
 
+    def get_all_hubs(self):
+        """
+        Fetches all unique regional hubs stored in BigQuery.
+        """
+        query = f"""
+            SELECT 
+                region_id as id,
+                region_id as city, 
+                lat, 
+                lng,
+                CONCAT('A regional hub fostering Team USA excellence in ', sport_name) as description
+            FROM `{self.client.project}.team_usa_data.hometown_hubs`
+        """
+        query_job = self.client.query(query)
+        return [dict(row) for row in query_job.result()]
+
     def get_aggregate_hub_stats(self, region_id: str):
         """
         Fetches aggregate counts per sport for a region. 

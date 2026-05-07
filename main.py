@@ -11,7 +11,10 @@ load_dotenv()
 
 app = FastAPI(title="Hometown Heroes API")
 
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "your-project-id")
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+
+if not PROJECT_ID:
+    raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set.")
 
 gemini_engine = GeminiNarrativeService(project_id=PROJECT_ID)
 data_engine = BigQueryService(project_id=PROJECT_ID)
@@ -26,17 +29,8 @@ def health_check():
 
 @app.get("/hubs", response_class=HTMLResponse)
 async def hubs_page():
-    # Mock data for demonstration - in production, this would be fetched from BigQuery,
-    # likely including pre-calculated lat/lng for each hub.
-    hubs = [
-        {"id": "colorado-springs", "city": "Colorado Springs, CO", "lat": 38.8339, "lng": -104.8214, "description": "Known as Olympic City USA, this high-altitude hub is home to the USOPC and world-class training facilities."},
-        {"id": "chula-vista", "city": "Chula Vista, CA", "lat": 32.6401, "lng": -117.0841, "description": "An elite training center environment with coastal conditions ideal for year-round outdoor sports excellence."},
-        {"id": "lake-placid", "city": "Lake Placid, NY", "lat": 44.2795, "lng": -73.9799, "description": "A legendary winter sports hub in the Adirondacks, fostering generations of winter sports greatness."},
-        {"id": "oklahoma-city", "city": "Oklahoma City, OK", "lat": 35.4676, "lng": -97.5164, "description": "A premier destination for rowing and paddle sports, leveraging unique river conditions for Team USA."},
-        {"id": "park-city", "city": "Park City, UT", "lat": 40.6461, "lng": -111.4979, "description": "A hub for winter sports, offering high-altitude training and world-class facilities for skiing and snowboarding."},
-        {"id": "gainesville", "city": "Gainesville, FL", "lat": 29.6516, "lng": -82.3248, "description": "Known for its aquatic sports programs and warm climate, ideal for year-round training."}
-    ]
-    
+    # Dynamically fetch hub locations from BigQuery
+    hubs = data_engine.get_all_hubs()
     google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY",)
     return render_hubs_page(hubs, google_maps_api_key)
 
@@ -48,10 +42,15 @@ async def get_hub_details(region_id: str):
         
         # 2. Use Gemini to generate the contextual narrative
         # Real-world logic would involve fetching specific NOAA data for this region_id
+        
+        # Extract real elevation from BigQuery results if available to replace the mock
+        elevation = stats[0].get("regional_elevation", "Unknown") if stats else "Unknown"
+        
         climate_mock = {
-            "avg_elevation": "4,500ft",
-            "notable_features": "High-altitude trails, consistent winter snowfall"
+            "avg_elevation": f"{elevation}m" if elevation != "Unknown" else elevation,
+            "notable_features": "Local terrain and climate conditions relevant to sport excellence."
         }
+
         narrative = await gemini_engine.generate_hub_narrative(region_id, stats, climate_mock)
         
         return {
