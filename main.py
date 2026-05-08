@@ -174,16 +174,21 @@ async def silence_chrome_devtools():
 @app.get("/hubs/{hometown_id}", response_class=HTMLResponse)
 async def hub_detail_page(hometown_id: str):
     try:
-        # Try getting hub data from Firestore first
+        # 1. Fetch from Firestore serving layer for instant metadata
         hub_data = serving_engine.get_hub(hometown_id)
         if not hub_data:
             raise HTTPException(status_code=404, detail="Hub not found")
             
-        # Note: render_hub_detail_page might need a slight adjustment to handle Firestore doc vs BQ rows
-        # For now, we utilize the BQ stats for the detailed sport grid
+        # 2. Get Aggregate Data from BigQuery for the detailed sport grid
         stats = data_engine.get_aggregate_hub_stats(hometown_id)
 
-        return render_hub_detail_page(hometown_id, stats, api_key=API_KEY)
+        return render_hub_detail_page(
+            hometown_id, 
+            stats, 
+            narrative=hub_data.get('narrative'), 
+            pretty_name=hub_data.get('pretty_city_name'),
+            api_key=API_KEY
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

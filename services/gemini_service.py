@@ -15,7 +15,7 @@ class GeminiNarrativeService:
             "\n\nSTRICT RULES:\n"
             "1. PRIVACY: No individual Names, Images, or Likeness (NIL). Never mention specific names or scoring results.\n"
             "2. AGGREGATION: Only discuss communities and hubs (e.g., 'A significant group of athletes from this region').\n"
-            "3. TERMINOLOGY: Use 'Olympic Games [City] [Year]' (e.g., Paris 2024). For the LA28 Games, use 'LA28 Games' or 'LA28 Olympic and Paralympic Games'. For the next Winter Games, use 'Olympic Winter Games Milano Cortina 2026'.\n"
+            "3. TERMINOLOGY: Use 'Olympic Games [City] [Year]' (e.g., Olympic Games Paris 2024). For the LA28 Games, use 'LA28 Games' or 'LA28 Olympic and Paralympic Games'. For the next Winter Games, use 'Olympic Winter Games Milano Cortina 2026'.\n"
             "4. NO 'PAST': Never use 'former' or 'past' Olympian/Paralympian. They are always Olympians/Paralympians.\n"
             "5. CAUSATION: Use conditional phrasing like 'could help find' or 'suggests a link'. Do not state geography is the cause.\n"
             "6. HUB LOGIC: Focus on why this specific region is a hub for certain sports based on terrain or climate.\n"

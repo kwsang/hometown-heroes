@@ -36,12 +36,6 @@ You must not use any olympic terminology and should use generic terms throughout
 
 You must not use any official International Olympic Committee (IOC) or USOPC intellectual property.
 
-Winter Games: Must be referred to as “Olympic Winter Games [City] [Year]” or “Paralympic Winter Games [City] [Year]” (e.g. “Olympic Winter Games Beijing 2022”). Secondary approved references include “The Winter Olympics” or “[City] [Year].”
-Summer Games (Non-LA): Must be referred to as “Olympic Games [City] [Year]” (e.g. “Olympic Games Paris 2024”).
-LA28 Games: Preferred references are “LA28 Games” or “LA28 Olympic and Paralympic Games.”
-“Former” Olympians: Once an athlete is an Olympian/Paralympian, they are always an Olympian/Paralympian; you must never use the terms “former” or “past” Olympian/Paralympian.
-Sport Names: You must use the official sport terminology, not the name of the National Governing Body (NGB) that represents the sport, unless prior NGB approval is obtained. For example, swimming vs. USA Swimming.
-
 Prohibited Data: 
 
 -Participants are strictly prohibited from using finish times or specific scoring results.
@@ -51,6 +45,22 @@ Prohibited Data:
 -Participants are strictly prohibited from using any International Olympics Committee (IOC) branding and any athlete name, image, or likeness (NIL).
 
 US Scope: Only data pertaining to Team USA (Olympic and Paralympic) may be used; larger international Olympic/Paralympic data sets are prohibited unless filtered for US-scope only. 
+
+There is a strict ban on the inclusion of competitor logos or third-party trademarks, including the International Olympics Committee (IOC) intellectual property (e.g., the torch or Olympic rings). Participants cannot include any corporate branding other than Google Cloud in their UI, mockups, or demo materials. 
+
+Submissions must also not contain any recognizable brands or any International Olympic Committee (IOC) or United States Olympic & Paralympic Committee (USOPC) intellectual property (e.g. the Olympic torch, Olympic Rings, Paralympic Agitos, or other IP associated with the Olympic & Paralympic Movement in the United States).
+
+Winter Games: Must be referred to as “Olympic Winter Games [City] [Year]” or “Paralympic Winter Games [City] [Year]” (e.g. “Olympic Winter Games Beijing 2022”). Secondary approved references include “The Winter Olympics” or “[City] [Year].”
+
+Summer Games (Non-LA): Must be referred to as “Olympic Games [City] [Year]” (e.g. “Olympic Games Paris 2024”).
+
+LA28 Games: Preferred references are “LA28 Games” or “LA28 Olympic and Paralympic Games.”
+
+“Former” Olympians: Once an athlete is an Olympian/Paralympian, they are always an Olympian/Paralympian; you must never use the terms “former” or “past” Olympian/Paralympian.
+
+Sport Names: You must use the official sport terminology, not the name of the National Governing Body (NGB) that represents the sport, unless prior NGB approval is obtained. For example, swimming vs. USA Swimming.
+
+If a Project integrates any third-party SDK, APIs, or data, Entrants must be authorized to use these tools as part of this Contest in accordance with any licensing requirements.
 
 Keep track of the data sources.
 

@@ -76,9 +76,9 @@ def render_landing_page() -> str:
     """
 
 
-def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None, api_key: str = None) -> str:
+def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None, pretty_name: str = None, api_key: str = None) -> str:
     # Format the hometown ID for display (e.g., boulder-co -> Boulder Co)
-    display_name = hometown_id.replace('-', ' ').title()
+    display_name = pretty_name if pretty_name else hometown_id.replace('-', ' ').title()
     region = stats[0].get("region", "Global") if stats else "Unknown"
     
     # Script to fetch narrative asynchronously if not provided initially
