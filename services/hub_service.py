@@ -84,6 +84,9 @@ class HubService:
             bigquery.SchemaField("regional_elevation", "FLOAT", mode="NULLABLE"),
             bigquery.SchemaField("hometown_id", "STRING", mode="NULLABLE"),
             bigquery.SchemaField("region", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("narrative", "STRING", mode="NULLABLE"),
+            bigquery.SchemaField("narrative_timestamp", "TIMESTAMP", mode="NULLABLE"),
+            bigquery.SchemaField("hub_image", "STRING", mode="NULLABLE"),
         ]
         job_config = bigquery.LoadJobConfig(schema=schema, write_disposition="WRITE_TRUNCATE")
         self.client.load_table_from_dataframe(df_registry, table_ref, job_config=job_config).result()
@@ -101,16 +104,16 @@ class HubService:
             return
 
         # Initialize columns
-        for col in ['lat', 'lng', 'regional_elevation', 'hometown_id', 'region']:
+        for col in ['lat', 'lng', 'regional_elevation', 'hometown_id', 'region', 'narrative', 'narrative_timestamp', 'hub_image']:
             df_raw[col] = None
 
         hometown_registry_table_ref = f"{self.project_id}.{dataset_id}.hometown_registry"
         try:
             df_registry = self.client.query(f"SELECT * FROM `{hometown_registry_table_ref}`").to_dataframe()
         except Exception:
-            df_registry = pd.DataFrame(columns=['hometown', 'total_athletes', 'sports', 'load_timestamp', 'lat', 'lng', 'regional_elevation', 'hometown_id', 'region'])
+            df_registry = pd.DataFrame(columns=['hometown', 'total_athletes', 'sports', 'load_timestamp', 'lat', 'lng', 'regional_elevation', 'hometown_id', 'region', 'narrative', 'narrative_timestamp', 'hub_image'])
 
-        for col in ['lat', 'lng', 'regional_elevation', 'hometown_id', 'region']:
+        for col in ['lat', 'lng', 'regional_elevation', 'hometown_id', 'region', 'narrative', 'narrative_timestamp', 'hub_image']:
             if col not in df_registry.columns: df_registry[col] = None
 
         # 2. Geocoding Phase
@@ -121,7 +124,10 @@ class HubService:
                     'lat': row['lat'], 'lng': row['lng'], 
                     'elevation': row['regional_elevation'], 
                     'hometown_id': row['hometown_id'], 
-                    'region': row['region']
+                    'region': row['region'],
+                    'narrative': row.get('narrative'),
+                    'narrative_timestamp': row.get('narrative_timestamp'),
+                    'hub_image': row.get('hub_image')
                 }
 
         unique_hometowns = sorted(list(set(df_raw['hometown'].dropna().unique()).union(set(df_registry['hometown'].dropna().unique()))))
@@ -149,11 +155,14 @@ class HubService:
             return pd.Series([
                 geo.get('lat'), geo.get('lng'), geo.get('elevation'),
                 geo.get('hometown_id', ht_str.lower().replace(' ', '-').replace(',', '').replace('.', '').replace("'", "").replace('"', '')),
-                geo.get('region', self.determine_region(ht_str))
+                geo.get('region', self.determine_region(ht_str)),
+                geo.get('narrative'),
+                geo.get('narrative_timestamp'),
+                geo.get('hub_image')
             ])
 
         logging.info("Enriching DataFrames...")
-        df_raw[['lat', 'lng', 'regional_elevation', 'hometown_id', 'region']] = df_raw.apply(enrich, axis=1, result_type='expand')
+        df_raw[['lat', 'lng', 'regional_elevation', 'hometown_id', 'region', 'narrative', 'narrative_timestamp', 'hub_image']] = df_raw.apply(enrich, axis=1, result_type='expand')
         
         # 4. Hub Aggregation
         df_hubs = df_raw.dropna(subset=['lat', 'lng']).groupby(
@@ -169,7 +178,10 @@ class HubService:
             ['hometown_id', 'hometown', 'region', 'lat', 'lng', 'regional_elevation']
         ).agg(
             total_athlete_count=('athlete_id', 'count'),
-            sports=('sport', lambda x: [{"sport": s, "count": int(c)} for s, c in sorted(x.value_counts().items())])
+            sports=('sport', lambda x: [{"sport": s, "count": int(c)} for s, c in sorted(x.value_counts().items())]),
+            narrative=('narrative', 'first'),
+            narrative_timestamp=('narrative_timestamp', 'first'),
+            hub_image=('hub_image', 'first')
         ).reset_index()
         df_summary['load_timestamp'] = pd.Timestamp.now(tz='UTC')
 
@@ -211,6 +223,9 @@ class HubService:
                         bigquery.SchemaField("count", "INTEGER"),
                     ]),
                     bigquery.SchemaField("load_timestamp", "TIMESTAMP"),
+                    bigquery.SchemaField("narrative", "STRING", mode="NULLABLE"),
+                    bigquery.SchemaField("narrative_timestamp", "TIMESTAMP", mode="NULLABLE"),
+                    bigquery.SchemaField("hub_image", "STRING", mode="NULLABLE"),
                 ],
                 write_disposition="WRITE_TRUNCATE"
             )

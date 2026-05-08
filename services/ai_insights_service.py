@@ -1,4 +1,5 @@
 from typing import List, Dict, Any
+import logging
 from services.gemini_service import GeminiNarrativeService
 from services.bigquery_service import BigQueryService
 
@@ -12,6 +13,11 @@ class AIInsightsService:
 
     async def get_narrative(self, hometown_id: str) -> str:
         """Fetch stats and generate a narrative for a specific hub."""
+        # 1. Check BigQuery Cache First
+        cached_narrative = self.bigquery.get_cached_narrative(hometown_id)
+        if cached_narrative:
+            return cached_narrative
+
         stats = self.bigquery.get_aggregate_hub_stats(hometown_id)
         if not stats:
             return "Regional data is currently being indexed."
@@ -22,7 +28,16 @@ class AIInsightsService:
             "notable_features": "Local terrain and climate conditions relevant to sport excellence."
         }
         
-        return await self.gemini.generate_hub_narrative(hometown_id, stats, climate_mock)
+        # 2. Generate if not cached
+        narrative = await self.gemini.generate_hub_narrative(hometown_id, stats, climate_mock)
+        
+        # 3. Persist to cache for future requests
+        try:
+            self.bigquery.update_hub_narrative(hometown_id, narrative)
+        except Exception as e:
+            logging.error(f"Cache write failed for {hometown_id}: {e}")
+        
+        return narrative
 
 def get_insights_html() -> str:
     """Returns the HTML structure for the AI Insights section in the drawer."""

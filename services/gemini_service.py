@@ -5,11 +5,9 @@ from typing import List, Dict, Any
 class GeminiNarrativeService:
     def __init__(self, project_id: str, location: str = "us-central1"):
         vertexai.init(project=project_id, location=location)
-        # Using Gemini 2.5 Pro as specified in project requirements
-        self.model = GenerativeModel("gemini-2.5-pro")
         
-        # These instructions ensure the AI adheres to the strict hackathon rules
-        self.system_instruction = (
+        # Passing instructions in the constructor ensures they are treated as system instructions
+        system_instruction = (
             "You are the narrative engine for 'Hometown Heroes'. "
             "Your goal is to explain how American geography and climate foster Team USA excellence. "
             "\n\nSTRICT RULES:\n"
@@ -20,6 +18,9 @@ class GeminiNarrativeService:
             "5. CAUSATION: Use conditional phrasing like 'could help find' or 'suggests a link'. Do not state geography is the cause.\n"
             "6. HUB LOGIC: Focus on why this specific region is a hub for certain sports based on terrain or climate."
         )
+        
+        # Using Gemini 2.5 Pro as specified in project requirements
+        self.model = GenerativeModel("gemini-2.5-pro", system_instruction=system_instruction)
 
     async def generate_hub_narrative(self, region_name: str, stats: List[Dict[str, Any]], climate_data: Dict[str, Any]):
         """
@@ -33,14 +34,19 @@ class GeminiNarrativeService:
             "emphasizing the collective power of Team USA in this area."
         )
         
-        # High safety settings to ensure no NIL or PII is hallucinated
+        # Configure safety settings
         safety_settings = {
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
         }
 
         response = await self.model.generate_content_async(
-            [self.system_instruction, prompt],
+            prompt,
             safety_settings=safety_settings
         )
-        return response.text
+        
+        # Safely handle empty or blocked responses
+        if response.candidates and response.candidates[0].content.parts:
+            return response.text
+        
+        return "A localized narrative for this region is currently being synthesized based on community athletic history."
