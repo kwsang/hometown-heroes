@@ -67,7 +67,7 @@ def get_insights_js(api_key: str) -> str:
                         const narrativeEl = document.getElementById('narrative-text');
                         if (narrativeEl) {{
                             narrativeEl.classList.remove('animate-pulse');
-                            narrativeEl.innerHTML = `"\${{data.narrative}}"`;
+                            narrativeEl.innerHTML = `${{data.narrative}}`;
                         }}
                     }})
                     .catch(err => {{

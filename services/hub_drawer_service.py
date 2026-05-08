@@ -78,17 +78,21 @@ def get_drawer_js(api_key: str) -> str:
                 const regionBadge = `<div class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold uppercase tracking-widest mb-4">${{region}} Region</div>`;
                 content.insertAdjacentHTML('afterbegin', regionBadge);
 
-                const sportHtml = statsData.statistics.map(item => `
-                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-                        <div class="truncate mr-2">
-                            <span class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Sport</span>
-                            <span class="text-sm font-black text-slate-900 truncate block">${{item.sport_name}}</span>
+                const sportHtml = statsData.statistics.map(item => {{
+                    // Normalize sport name to Title Case for display
+                    const sportName = item.sport_name.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    return `
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                            <div class="truncate mr-2">
+                                <span class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Sport</span>
+                                <span class="text-xs font-black text-slate-900 truncate block">${{sportName}}</span>
+                            </div>
+                            <div class="text-right flex-shrink-0">
+                                <span class="inline-block px-2 py-0.5 bg-blue-600 text-white rounded-lg text-xs font-bold">${{item.athlete_count}}</span>
+                            </div>
                         </div>
-                        <div class="text-right flex-shrink-0">
-                            <span class="inline-block px-2 py-0.5 bg-blue-600 text-white rounded-lg text-xs font-bold">${{item.athlete_count}}</span>
-                        </div>
-                    </div>
-                `).join('');
+                    `;
+                }}).join('');
 
                 document.getElementById('stats-container').innerHTML = sportHtml;
 
