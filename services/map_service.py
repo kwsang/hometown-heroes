@@ -10,6 +10,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                 id: '{hub['id']}',
                 city: '{hub['city']}',
                 pretty_city_name: '{hub['pretty_city_name']}',
+                athlete_count: {hub['total_athlete_count']},
                 lat: {hub['lat']},
                 lng: {hub['lng']},
                 region: '{hub['region']}',
@@ -37,21 +38,34 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
             data-region-btn="{name}"
             class="flex items-center space-x-2 px-3 py-2 rounded-xl transition-all duration-200 border border-transparent hover:bg-white hover:shadow-sm"
         >
-            <span class="w-3 h-3 rounded-full" style="background-color: {color};"></span>
+            <span class="w-2.5 h-2.5 rounded-full" style="background-color: {color};"></span>
             <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{name}</span>
         </button>
         """ for name, color in region_colors.items()
     ])
-    legend_html = f'<div class="flex flex-wrap gap-x-4 gap-y-2 mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-100">{legend_items}</div>'
+    legend_html = f"""
+    <div class="flex flex-wrap items-center justify-between gap-6 mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+        <div class="flex flex-wrap gap-x-4 gap-y-2">
+            {legend_items}
+        </div>
+        <div class="flex flex-col space-y-2 min-w-[200px] border-l border-slate-200 pl-6 ml-auto">
+            <label for="athlete-range" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex justify-between">
+                <span>Min Athletes</span>
+                <span id="range-value" class="text-blue-600 font-black">1</span>
+            </label>
+            <input type="range" id="athlete-range" min="1" max="100" value="1" 
+                   class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                   oninput="updateAthleteFilter(this.value)">
+        </div>
+    </div>
+    """
 
     return f"""
     <!DOCTYPE html>
     <html lang="en">
     {frontend_service.get_head_html("Regional Hubs | Hometown Heroes")}
-    <body class="bg-slate-50 min-h-screen flex flex-col items-center py-8 px-4 overflow-x-hidden">
-        {hub_drawer_service.get_drawer_html()}
-
-        <div class="max-w-6xl w-full bg-white p-6 md:p-8 rounded-3xl shadow-xl">
+    <body class="bg-slate-50 min-h-screen flex flex-col items-center py-8 px-4">
+        <div class="max-w-[98vw] w-full bg-white p-6 md:p-8 rounded-3xl shadow-xl transition-all duration-500">
             <div class="mb-6">
                 <a href="/" class="text-blue-600 hover:underline text-xs font-bold uppercase tracking-widest">&larr; Back to Home</a>
             </div>
@@ -60,11 +74,17 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                 Explore the geographic centers that foster Team USA excellence. Click on a city to see its aggregate statistics and narrative.
             </p>
             {legend_html}
-            <div id="map" style="height: 600px; width: 100%; border-radius: 1rem; margin-bottom: 2rem;"></div>
+            
+            <div class="flex h-[85vh] w-full rounded-3xl overflow-hidden border border-slate-100 shadow-sm mb-8">
+                <div id="map" class="flex-grow h-full"></div>
+                {hub_drawer_service.get_drawer_html()}
+            </div>
+
             <script>
                 let map;
                 const markers = [];
                 const selectedRegions = new Set();
+                let minAthletes = 1;
                 const hubs = [
                     {hubs_js}
                 ];
@@ -108,12 +128,18 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                         }});
                         
                         marker.region = hub.region;
+                        marker.athleteCount = hub.athlete_count;
                         markers.push(marker);
 
                         marker.addListener("click", () => {{
                             openDrawer(hub.id, hub.pretty_city_name);
                         }});
                     }});
+
+                    // Setup range slider max dynamically based on data
+                    const maxAthletes = Math.max(...hubs.map(h => h.athlete_count), 10);
+                    const rangeInput = document.getElementById('athlete-range');
+                    if (rangeInput) rangeInput.max = maxAthletes;
                 }}
 
                 window.toggleRegion = (region) => {{
@@ -125,9 +151,15 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                     updateFilters();
                 }};
 
+                window.updateAthleteFilter = (val) => {{
+                    minAthletes = parseInt(val);
+                    document.getElementById('range-value').innerText = val;
+                    updateFilters();
+                }};
+
                 function updateFilters() {{
                     const btns = document.querySelectorAll('[data-region-btn]');
-                    const isFiltering = selectedRegions.size > 0;
+                    const isFilteringRegions = selectedRegions.size > 0;
 
                     btns.forEach(btn => {{
                         const region = btn.getAttribute('data-region-btn');
@@ -136,12 +168,14 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                         btn.classList.toggle('bg-white', isActive);
                         btn.classList.toggle('shadow-sm', isActive);
                         btn.classList.toggle('border-slate-200', isActive);
-                        btn.style.opacity = (!isFiltering || isActive) ? "1" : "0.4";
-                        btn.style.filter = (!isFiltering || isActive) ? "none" : "grayscale(100%)";
+                        btn.style.opacity = (!isFilteringRegions || isActive) ? "1" : "0.4";
+                        btn.style.filter = (!isFilteringRegions || isActive) ? "none" : "grayscale(100%)";
                     }});
 
                     markers.forEach(m => {{
-                        m.map = (!isFiltering || selectedRegions.has(m.region)) ? map : null;
+                        const matchesRegion = !isFilteringRegions || selectedRegions.has(m.region);
+                        const matchesCount = m.athleteCount >= minAthletes;
+                        m.map = (matchesRegion && matchesCount) ? map : null;
                     }});
                 }}
                 {hub_drawer_service.get_drawer_js()}
@@ -149,8 +183,10 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                 initMap();
             </script>
             <script async src="https://maps.googleapis.com/maps/api/js?key={google_maps_api_key}&callback=initMap&v=beta&libraries=marker"></script>
-            <div class="mt-8">
-                {frontend_service.get_footer_html()}
+            <div class="mt-8 text-center">
+                <a href="/" class="text-blue-600 hover:underline text-sm font-bold uppercase tracking-widest">
+                    &larr; Back to Home
+                </a>
             </div>
         </div>
     </body>

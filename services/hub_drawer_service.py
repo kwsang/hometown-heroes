@@ -3,18 +3,15 @@ from services import ai_insights_service
 def get_drawer_html() -> str:
     """Returns the HTML structure for the hub details side drawer."""
     return """
-        <!-- Details Drawer Overlay -->
-        <div id="drawer-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 hidden transition-opacity duration-300" onclick="closeDrawer()"></div>
-        
         <!-- Details Drawer -->
-        <div id="drawer" class="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out overflow-y-auto border-l border-slate-100">
-            <div class="p-8">
-                <button onclick="closeDrawer()" class="mb-8 text-slate-400 hover:text-slate-900 font-bold uppercase text-[10px] tracking-widest flex items-center transition group">
+        <div id="drawer" class="w-0 transition-all duration-500 ease-in-out overflow-y-auto border-l border-transparent bg-white h-full relative">
+            <div class="p-8 sticky top-0 bg-white/90 backdrop-blur-sm z-20 border-b border-slate-50">
+                <button onclick="closeDrawer()" class="text-slate-400 hover:text-slate-900 font-bold uppercase text-[10px] tracking-widest flex items-center transition group">
                     <span class="mr-2 text-lg group-hover:-translate-x-1 transition-transform">✕</span> Close Details
                 </button>
-                <div id="drawer-content">
-                    <!-- Content injected via JS -->
-                </div>
+            </div>
+            <div id="drawer-content" class="p-8 pt-2">
+                <!-- Content injected via JS -->
             </div>
         </div>
     """
@@ -23,19 +20,26 @@ def get_drawer_js() -> str:
     """Returns the JavaScript logic for opening, closing, and populating the hub details drawer."""
     return """
         function closeDrawer() {
-            document.getElementById('drawer').classList.add('translate-x-full');
-            document.getElementById('drawer-overlay').classList.add('hidden');
+            const drawer = document.getElementById('drawer');
+            drawer.classList.remove('w-full', 'md:w-[450px]', 'border-slate-100');
+            drawer.classList.add('w-0', 'border-transparent');
             document.body.style.overflow = 'auto';
         }
 
         async function openDrawer(hubId, hubCity) {
             const drawer = document.getElementById('drawer');
-            const overlay = document.getElementById('drawer-overlay');
             const content = document.getElementById('drawer-content');
             
-            overlay.classList.remove('hidden');
-            drawer.classList.remove('translate-x-full');
-            document.body.style.overflow = 'hidden';
+            // Expand the side panel
+            drawer.classList.remove('w-0', 'border-transparent');
+            drawer.classList.add('w-full', 'md:w-[450px]', 'border-slate-100');
+
+            // Center the map on the hub point
+            const hub = hubs.find(h => h.id === hubId);
+            if (hub && map) {
+                map.panTo({ lat: hub.lat, lng: hub.lng });
+                map.setZoom(7);
+            }
             
             // Use the pretty name directly from the map marker
             const prettyName = hubCity;
