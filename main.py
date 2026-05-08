@@ -65,6 +65,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Ensure required directories exist to avoid FastAPI startup failure
+for doc_dir in ["img", "static"]:
+    if not os.path.exists(doc_dir):
+        os.makedirs(doc_dir)
+
 # Mount the static images directory so the browser can access the favicon
 app.mount("/img", StaticFiles(directory="img"), name="img")
 

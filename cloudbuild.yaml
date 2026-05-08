@@ -1,11 +1,11 @@
 steps:
   # 1. Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/hometown-heroes', '.']
+    args: ['build', '-t', 'gcr.io/${PROJECT_ID}/hometown-heroes', '.']
 
   # 2. Push the image to Google Container Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/hometown-heroes']
+    args: ['push', 'gcr.io/${PROJECT_ID}/hometown-heroes']
 
   # 3. Deploy the image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -15,16 +15,16 @@ steps:
       - 'deploy'
       - 'hometown-heroes'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/hometown-heroes'
+      - 'gcr.io/${PROJECT_ID}/hometown-heroes'
       - '--region'
       - 'us-central1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1'
+      - 'GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=us-central1'
       - '--set-secrets'
       - 'API_KEY=MY_API_KEY_SECRET:latest,GOOGLE_MAPS_API_KEY=MY_MAPS_KEY_SECRET:latest'
 
 images:
-  - 'gcr.io/$PROJECT_ID/hometown-heroes'
+  - 'gcr.io/${PROJECT_ID}/hometown-heroes'
