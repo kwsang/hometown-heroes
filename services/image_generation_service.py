@@ -7,6 +7,7 @@ from google.cloud import bigquery
 from google.cloud import storage
 from PIL import Image
 from .bigquery_service import BigQueryService
+from .firestore_service import FirestoreService
 
 class ImageGenerationService:
     """
@@ -16,6 +17,7 @@ class ImageGenerationService:
     def __init__(self, project_id: str):
         self.project_id = project_id
         self.bigquery = BigQueryService(project_id=project_id)
+        self.firestore = FirestoreService(project_id=project_id)
         self.storage_client = storage.Client(project=project_id)
         # Default bucket name based on project ID
         self.bucket_name = os.getenv("GCS_BUCKET_NAME", f"{project_id}-hub-images")
@@ -62,9 +64,10 @@ class ImageGenerationService:
                 # 3. Upload to GCS
                 gcs_url = self._upload_to_gcs(hometown_id, image_bytes)
 
-                # 4. Persist URL to cache (Write-through)
+                # 4. Persist URL to cache (BigQuery) and Serving Layer (Firestore)
                 logging.info(f"Caching generated image for {pretty_name} ({hometown_id}).")
                 self._cache_image_url(hometown_id, gcs_url)
+                self.firestore.update_field(hometown_id, "hub_image", gcs_url)
                 return gcs_url
 
         except Exception as e:

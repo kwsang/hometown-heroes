@@ -2,6 +2,7 @@ from typing import List, Dict, Any
 import logging
 from .gemini_service import GeminiNarrativeService
 from .bigquery_service import BigQueryService
+from .firestore_service import FirestoreService
 
 class AIInsightsService:
     """
@@ -10,6 +11,7 @@ class AIInsightsService:
     def __init__(self, project_id: str):
         self.gemini = GeminiNarrativeService(project_id=project_id)
         self.bigquery = BigQueryService(project_id=project_id)
+        self.firestore = FirestoreService(project_id=project_id)
 
     async def get_narrative(self, hometown_id: str) -> str:
         """Fetch stats and generate a narrative for a specific hub."""
@@ -31,9 +33,10 @@ class AIInsightsService:
         # 2. Generate if not cached
         narrative = await self.gemini.generate_hub_narrative(hometown_id, stats, climate_mock)
         
-        # 3. Persist to cache for future requests
+        # 3. Persist to cache (BigQuery) and Serving Layer (Firestore)
         try:
             self.bigquery.update_hub_narrative(hometown_id, narrative)
+            self.firestore.update_field(hometown_id, "narrative", narrative)
         except Exception as e:
             logging.error(f"Cache write failed for {hometown_id}: {e}")
         

@@ -23,7 +23,7 @@ class GeminiNarrativeService:
         )
         
         # Using Gemini 2.5 Pro as specified in project requirements
-        self.model = GenerativeModel("gemini-2.5-pro", system_instruction=system_instruction) # Consider pinning a specific version
+        self.model = GenerativeModel("gemini-2.5-flash-lite", system_instruction=system_instruction) # Consider pinning a specific version
 
     async def generate_hub_narrative(self, region_name: str, stats: List[Dict[str, Any]], climate_data: Dict[str, Any]):
         """

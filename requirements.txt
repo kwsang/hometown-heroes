@@ -4,6 +4,7 @@ gunicorn
 google-cloud-bigquery
 google-cloud-aiplatform
 google-cloud-storage
+google-cloud-firestore
 google-auth
 pandas
 db-dtypes

@@ -15,6 +15,7 @@ from services.frontend_service import render_landing_page, render_hub_detail_pag
 from services.map_service import render_hubs_page
 from services.ai_insights_service import AIInsightsService
 from services.image_generation_service import ImageGenerationService
+from services.firestore_service import FirestoreService
 
 try:
     from dotenv import load_dotenv
@@ -126,6 +127,7 @@ gemini_engine = GeminiNarrativeService(project_id=PROJECT_ID)
 data_engine = BigQueryService(project_id=PROJECT_ID)
 insights_engine = AIInsightsService(project_id=PROJECT_ID)
 image_engine = ImageGenerationService(project_id=PROJECT_ID)
+serving_engine = FirestoreService(project_id=PROJECT_ID)
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -169,10 +171,14 @@ async def silence_chrome_devtools():
 @app.get("/hubs/{hometown_id}", response_class=HTMLResponse)
 async def hub_detail_page(hometown_id: str):
     try:
-        # 1. Get Aggregate Data from BigQuery
-        stats = data_engine.get_aggregate_hub_stats(hometown_id)
-        if not stats:
+        # Try getting hub data from Firestore first
+        hub_data = serving_engine.get_hub(hometown_id)
+        if not hub_data:
             raise HTTPException(status_code=404, detail="Hub not found")
+            
+        # Note: render_hub_detail_page might need a slight adjustment to handle Firestore doc vs BQ rows
+        # For now, we utilize the BQ stats for the detailed sport grid
+        stats = data_engine.get_aggregate_hub_stats(hometown_id)
 
         return render_hub_detail_page(hometown_id, stats, api_key=API_KEY)
     except Exception as e:

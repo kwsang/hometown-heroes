@@ -121,7 +121,17 @@ def migrate_images():
         """
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
-                bigquery.ArrayQueryParameter("updates", "RECORD", migration_results)
+                bigquery.ArrayQueryParameter(
+                    "updates", 
+                    "RECORD", 
+                    [
+                        bigquery.StructQueryParameter(
+                            "row",
+                            bigquery.ScalarQueryParameter("hid", "STRING", r["hid"]),
+                            bigquery.ScalarQueryParameter("url", "STRING", r["url"])
+                        ) for r in migration_results
+                    ]
+                )
             ]
         )
         bq_client.query(merge_query, job_config=job_config).result()

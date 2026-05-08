@@ -148,7 +148,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                             map: map,
                             position: {{ lat: hub.lat, lng: hub.lng }},
                             title: hub.city,
-                            content: pin.element,
+                            content: pin,
                         }});
                         
                         marker.region = hub.region;

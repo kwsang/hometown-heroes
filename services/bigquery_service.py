@@ -37,7 +37,6 @@ class BigQueryService:
             SELECT 
                 sport_name, 
                 athlete_count,
-                athlete_ids,
                 regional_elevation, # Assuming this is an average or representative elevation for the region
                 region,
                 lat, # Latitude of the region (e.g., city center)

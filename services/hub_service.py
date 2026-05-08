@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 from google.cloud import bigquery
 from typing import Dict, List, Optional
+from .firestore_service import FirestoreService
 
 class HubService:
     """
@@ -24,6 +25,7 @@ class HubService:
         self.project_id = project_id
         self.api_key = maps_api_key.strip("'").strip('"')
         self.client = bigquery.Client(project=project_id)
+        self.firestore = FirestoreService(project_id=project_id)
 
     def determine_region(self, hometown: str) -> str:
         """Maps a hometown string to a US Region or 'Global'."""
@@ -191,6 +193,8 @@ class HubService:
             df_hubs, 
             f"{self.project_id}.{dataset_id}.hometown_hubs",
             job_config=bigquery.LoadJobConfig(
+                # Clustering by hometown_id significantly speeds up point lookups
+                clustering_fields=["hometown_id"],
                 schema=[
                     bigquery.SchemaField("hometown_id", "STRING"),
                     bigquery.SchemaField("region", "STRING"),
@@ -206,10 +210,20 @@ class HubService:
             )
         ).result()
 
+        # 7. Sync to Firestore Serving Layer
+        logging.info("Synchronizing summary data to Firestore serving layer...")
+        # Prepare the summary data for the map (rename columns to match frontend expectations if needed)
+        df_serving = df_summary.copy()
+        df_serving = df_serving.rename(columns={'hometown': 'pretty_city_name', 'total_athlete_count': 'athlete_count'})
+        self.firestore.sync_from_dataframe(df_serving)
+        logging.info("Firestore synchronization complete.")
+
         self.client.load_table_from_dataframe(
             df_summary, 
             f"{self.project_id}.{dataset_id}.regional_hubs_summary",
             job_config=bigquery.LoadJobConfig(
+                # Clustering by hometown_id and region optimizes the map view and drawer
+                clustering_fields=["hometown_id", "region"],
                 schema=[
                     bigquery.SchemaField("hometown_id", "STRING"),
                     bigquery.SchemaField("hometown", "STRING"),
