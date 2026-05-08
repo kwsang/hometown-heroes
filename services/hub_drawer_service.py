@@ -6,7 +6,7 @@ def get_drawer_html() -> str:
         <!-- Details Drawer -->
         <div id="drawer" class="w-0 transition-all duration-500 ease-in-out overflow-y-auto border-l border-transparent bg-white h-full relative">
             <div class="p-8 sticky top-0 bg-white/90 backdrop-blur-sm z-20 border-b border-slate-50">
-                <button onclick="closeDrawer()" class="text-slate-400 hover:text-slate-900 font-bold uppercase text-[10px] tracking-widest flex items-center transition group">
+                <button onclick="closeDrawer()" class="text-slate-400 hover:text-slate-900 font-bold uppercase text-xs tracking-widest flex items-center transition group">
                     <span class="mr-2 text-lg group-hover:-translate-x-1 transition-transform">✕</span> Close Details
                 </button>
             </div>
@@ -66,13 +66,13 @@ def get_drawer_js() -> str:
                 const region = statsData.statistics[0]?.region || 'Global';
 
                 // Add the region badge above the name
-                const regionBadge = `<div class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] font-bold uppercase tracking-widest mb-4">${region} Region</div>`;
+                const regionBadge = `<div class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold uppercase tracking-widest mb-4">\${region} Region</div>`;
                 content.insertAdjacentHTML('afterbegin', regionBadge);
 
                 const sportHtml = statsData.statistics.map(item => `
                     <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 flex justify-between items-center mb-3">
                         <div>
-                            <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Sport</span>
+                            <span class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Sport</span>
                             <span class="text-base font-black text-slate-900">${item.sport_name}</span>
                         </div>
                         <div class="text-right">

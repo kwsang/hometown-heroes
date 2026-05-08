@@ -39,7 +39,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
             class="flex items-center space-x-2 px-3 py-2 rounded-xl transition-all duration-200 border border-transparent hover:bg-white hover:shadow-sm"
         >
             <span class="w-2.5 h-2.5 rounded-full" style="background-color: {color};"></span>
-            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{name}</span>
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">{name}</span>
         </button>
         """ for name, color in region_colors.items()
     ])
@@ -49,7 +49,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
             {legend_items}
         </div>
         <div class="flex flex-col space-y-2 min-w-[200px] border-l border-slate-200 pl-6 ml-auto">
-            <label for="athlete-range" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex justify-between">
+            <label for="athlete-range" class="text-xs font-bold text-slate-500 uppercase tracking-widest flex justify-between">
                 <span>Min Athletes</span>
                 <span id="range-value" class="text-blue-600 font-black">1</span>
             </label>

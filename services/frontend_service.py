@@ -55,7 +55,7 @@ def get_footer_html() -> str:
         <div class="flex justify-center items-center space-x-4 opacity-50 grayscale">
             <img src="https://www.gstatic.com/images/branding/googlelogo/svg/google_logo_dark_clr_74x24px.svg" alt="Google Cloud" class="h-4">
         </div>
-        <p class="mt-4 text-[10px] text-slate-400 max-w-sm mx-auto">
+        <p class="mt-4 text-xs text-slate-400 max-w-sm mx-auto">
             Respecting NIL protections. Focusing on aggregate community insights. 
             Terminology consistent with Olympic Games Paris 2024 and LA28 Games.
         </p>
