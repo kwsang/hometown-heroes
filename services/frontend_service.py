@@ -3,6 +3,7 @@ def get_head_html(title: str) -> str:
     <head>
         <meta charset="UTF-8">
         <title>{title}</title>
+        <link rel="icon" type="image/png" href="/img/favicon/favicon.png">
         <link rel="icon" type="image/x-icon" href="/img/favicon/favicon.ico">
         <link href="/static/css/output.css" rel="stylesheet">
     </head>

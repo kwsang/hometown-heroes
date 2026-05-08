@@ -42,7 +42,7 @@ class AIInsightsService:
 def get_insights_html() -> str:
     """Returns the HTML structure for the AI Insights section in the drawer."""
     return """
-                <div id="narrative-container" class="bg-blue-50 p-6 rounded-2xl border border-blue-100 mb-8">
+                <div id="narrative-container" class="bg-blue-50 p-4 rounded-2xl border border-blue-100 mb-4">
                     <h3 class="text-sm font-bold text-blue-900 mb-2 flex items-center">
                         <span class="mr-2">✨</span> AI Insights
                     </h3>

@@ -5,12 +5,12 @@ def get_drawer_html() -> str:
     return """
         <!-- Details Drawer -->
         <div id="drawer" class="w-0 transition-all duration-500 ease-in-out overflow-y-auto border-l border-transparent bg-white h-full relative">
-            <div class="p-8 sticky top-0 bg-white/90 backdrop-blur-sm z-20 border-b border-slate-50">
+            <div class="p-6 sticky top-0 bg-white/90 backdrop-blur-sm z-20 border-b border-slate-50">
                 <button onclick="closeDrawer()" class="text-slate-400 hover:text-slate-900 font-bold uppercase text-xs tracking-widest flex items-center transition group">
                     <span class="mr-2 text-lg group-hover:-translate-x-1 transition-transform">✕</span> Close Details
                 </button>
             </div>
-            <div id="drawer-content" class="p-8 pt-2">
+            <div id="drawer-content" class="p-6 pt-1">
                 <!-- Content injected via JS -->
             </div>
         </div>
@@ -46,7 +46,7 @@ def get_drawer_js(api_key: str) -> str:
 
             // Immediately show the hub name and skeletons to improve perceived performance
             content.innerHTML = `
-                <div class="flex justify-between items-start mb-6 gap-4">
+                <div class="flex justify-between items-start mb-2 gap-4">
                     <div class="flex-grow">
                         <h2 class="text-3xl font-black text-slate-900">${{prettyName}}</h2>
                     </div>
@@ -55,9 +55,9 @@ def get_drawer_js(api_key: str) -> str:
                     </div>
                 </div>
 
-                <h3 class="text-lg font-black text-slate-900 mb-4">Sport Representation</h3>
-                <div id="stats-container" class="grid grid-cols-2 gap-3 mb-8">
-                    <div class="col-span-2 flex items-center justify-center py-12">
+                <h3 class="text-lg font-black text-slate-900 mb-1">Sport Representation</h3>
+                <div id="stats-container" class="grid grid-cols-2 gap-y-1.5 gap-x-4 mb-2">
+                    <div class="col-span-2 flex items-center justify-center py-4">
                         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
                 </div>
@@ -82,13 +82,12 @@ def get_drawer_js(api_key: str) -> str:
                     // Normalize sport name to Title Case for display
                     const sportName = item.sport_name.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     return `
-                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-                            <div class="truncate mr-2">
-                                <span class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Sport</span>
-                                <span class="text-xs font-black text-slate-900 truncate block">${{sportName}}</span>
+                        <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-100 flex justify-between items-center text-sm">
+                            <div class="truncate mr-1">
+                                <span class="text-sm font-bold text-slate-900 truncate block uppercase tracking-widest">${{sportName}}</span>
                             </div>
                             <div class="text-right flex-shrink-0">
-                                <span class="inline-block px-2 py-0.5 bg-blue-600 text-white rounded-lg text-xs font-bold">${{item.athlete_count}}</span>
+                                <span class="inline-block px-2 py-0.5 bg-blue-600 text-white rounded-md text-sm font-bold">${{item.athlete_count}}</span>
                             </div>
                         </div>
                     `;
