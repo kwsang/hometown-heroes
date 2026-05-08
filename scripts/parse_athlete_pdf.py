@@ -174,7 +174,6 @@ if __name__ == "__main__":
     RESOURCES_DIR = os.path.join(SCRIPT_DIR, "resources")
     PAGES_DIR = os.path.join(RESOURCES_DIR, "pages")
     OUTPUT_DIR = os.path.join(RESOURCES_DIR, "output")
-    INPUT_PDF = os.path.join(RESOURCES_DIR, "AllTimeHistory.pdf")
 
     # Ensure directories exist
     os.makedirs(PAGES_DIR, exist_ok=True)
@@ -184,108 +183,104 @@ if __name__ == "__main__":
     Script initialized. To run:
     1. Set GOOGLE_CLOUD_PROJECT environment variable.
     2. Ensure you have 'google-cloud-aiplatform' and 'pypdf' installed.
-    3. Update the INPUT_PDF path in the script if necessary.
     """)
 
-    if not os.path.exists(INPUT_PDF):
-        print(f"Error: Source PDF not found at {INPUT_PDF}")
-    else:
-        SPORT_MAP_FILE = os.path.join(RESOURCES_DIR, "sport_map.json")
-        if not os.path.exists(SPORT_MAP_FILE):
-            print(f"Error: Sport mapping file not found at {SPORT_MAP_FILE}.")
-            print("Please run 'generate_sport_map.py' first to create the sport mapping.")
-            exit()
-        
-        with open(SPORT_MAP_FILE, "r", encoding="utf-8") as f:
-            sport_map = json.load(f)
-        
-        # --- CONVERSION PHASE ---
-        print("\n--- Starting PDF to JSON Conversion ---")
-        
-        # 1. Group entries by base sport name to handle multi-part consolidation
-        grouped_sports = {}
-        for sport_key, data in sport_map.items():
-            # Strip ALL existing " (Part X)" suffixes to get the official sport name
-            base_name = re.sub(r'(\s\(Part \d+\))+', '', sport_key)
-            if base_name not in grouped_sports:
-                grouped_sports[base_name] = []
-            grouped_sports[base_name].append((sport_key, data))
+    SPORT_MAP_FILE = os.path.join(RESOURCES_DIR, "sport_map.json")
+    if not os.path.exists(SPORT_MAP_FILE):
+        print(f"Error: Sport mapping file not found at {SPORT_MAP_FILE}.")
+        print("Please run 'generate_sport_map.py' first to create the sport mapping.")
+        exit()
+    
+    with open(SPORT_MAP_FILE, "r", encoding="utf-8") as f:
+        sport_map = json.load(f)
+    
+    # --- CONVERSION PHASE ---
+    print("\n--- Starting PDF to JSON Conversion ---")
+    
+    # 1. Group entries by base sport name to handle multi-part consolidation
+    grouped_sports = {}
+    for sport_key, data in sport_map.items():
+        # Strip ALL existing " (Part X)" suffixes to get the official sport name
+        base_name = re.sub(r'(\s\(Part \d+\))+', '', sport_key)
+        if base_name not in grouped_sports:
+            grouped_sports[base_name] = []
+        grouped_sports[base_name].append((sport_key, data))
 
-        for base_sport, parts in grouped_sports.items():
-            # Sanitize base filename for consolidated output
-            base_filename = base_sport.lower().replace(" ", "_").replace("/", "_")
-            final_json_path = os.path.join(OUTPUT_DIR, f"{base_filename}.json")
+    for base_sport, parts in grouped_sports.items():
+        # Sanitize base filename for consolidated output
+        base_filename = base_sport.lower().replace(" ", "_").replace("/", "_")
+        final_json_path = os.path.join(OUTPUT_DIR, f"{base_filename}.json")
 
-            # Check if JSON already exists in either output directories
-            already_exists = False
-            for check_dir in [OUTPUT_DIR]:
-                if os.path.exists(os.path.join(check_dir, f"{base_filename}.json")):
-                    already_exists = True
-                    break
-                # Check for legacy indexed files (e.g., "1_archery.json")
-                if any(f.endswith(f"_{base_filename}.json") and f.split('_')[0].isdigit() for f in os.listdir(check_dir)):
-                    already_exists = True
-                    break
+        # Check if JSON already exists in either output directories
+        already_exists = False
+        for check_dir in [OUTPUT_DIR]:
+            if os.path.exists(os.path.join(check_dir, f"{base_filename}.json")):
+                already_exists = True
+                break
+            # Check for legacy indexed files (e.g., "1_archery.json")
+            if any(f.endswith(f"_{base_filename}.json") and f.split('_')[0].isdigit() for f in os.listdir(check_dir)):
+                already_exists = True
+                break
 
-            if already_exists:
-                print(f"Skipping {base_sport} (JSON already exists in output).")
-                # Cleanup any orphaned cache files if the final file exists
-                for sport_part_name, _ in parts:
-                    part_fn = sport_part_name.lower().replace(" ", "_").replace("/", "_")
-                    # Check for both .json (legacy cache) and .tmp extensions
-                    for ext in [".json", ".tmp"]:
-                        cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_fn}{ext}")
-                        if os.path.exists(cache_path):
-                            os.remove(cache_path)
-                continue
-
-            print(f"\n--- Processing Sport: {base_sport} ---")
-            all_athletes_for_sport = []
-            all_parts_available = True
-
-            for sport_part_name, data in parts:
-                # Sanitize part filename for PDF lookup and caching
-                part_filename = sport_part_name.lower().replace(" ", "_").replace("/", "_")
-                page_pdf_path = os.path.join(PAGES_DIR, f"{part_filename}.pdf")
-                # Use .tmp extension to prevent ingestion scripts from picking up partial data
-                part_cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_filename}.tmp")
-
-                if os.path.exists(part_cache_path):
-                    print(f"  Loading cached data for {sport_part_name}...")
-                    with open(part_cache_path, "r", encoding="utf-8") as f:
-                        part_data = json.load(f)
-                        all_athletes_for_sport.extend(part_data)
-                else:
-                    if not os.path.exists(page_pdf_path):
-                        print(f"  Warning: PDF segment for {sport_part_name} not found.")
-                        all_parts_available = False
-                        break
-
-                    print(f"  Converting {sport_part_name}...")
-                    extracted = parse_athlete_pdf(
-                        page_pdf_path, PROJECT, base_sport, save_to_json=True, 
-                        output_json_path=part_cache_path,
-                        expected_first=data.get("first_athlete"),
-                        expected_last=data.get("last_athlete")
-                    )
-                    
-                    if extracted:
-                        all_athletes_for_sport.extend(extracted)
-                    else:
-                        print(f"  Error: Failed to extract data for {sport_part_name}.")
-                        all_parts_available = False
-                        break
-
-            if all_parts_available and all_athletes_for_sport:
-                with open(final_json_path, "w", encoding="utf-8") as f:
-                    json.dump(all_athletes_for_sport, f, indent=4)
-                print(f"Successfully consolidated {len(all_athletes_for_sport)} records into {final_json_path}")
-                
-                # Cleanup: Remove temporary cache files after successful consolidation
-                for sport_part_name, _ in parts:
-                    part_fn = sport_part_name.lower().replace(" ", "_").replace("/", "_")
-                    cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_fn}.tmp")
+        if already_exists:
+            print(f"Skipping {base_sport} (JSON already exists in output).")
+            # Cleanup any orphaned cache files if the final file exists
+            for sport_part_name, _ in parts:
+                part_fn = sport_part_name.lower().replace(" ", "_").replace("/", "_")
+                # Check for both .json (legacy cache) and .tmp extensions
+                for ext in [".json", ".tmp"]:
+                    cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_fn}{ext}")
                     if os.path.exists(cache_path):
                         os.remove(cache_path)
-            elif not all_parts_available:
-                print(f"  Consolidation for {base_sport} aborted due to missing parts.")
+            continue
+
+        print(f"\n--- Processing Sport: {base_sport} ---")
+        all_athletes_for_sport = []
+        all_parts_available = True
+
+        for sport_part_name, data in parts:
+            # Sanitize part filename for PDF lookup and caching
+            part_filename = sport_part_name.lower().replace(" ", "_").replace("/", "_")
+            page_pdf_path = os.path.join(PAGES_DIR, f"{part_filename}.pdf")
+            # Use .tmp extension to prevent ingestion scripts from picking up partial data
+            part_cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_filename}.tmp")
+
+            if os.path.exists(part_cache_path):
+                print(f"  Loading cached data for {sport_part_name}...")
+                with open(part_cache_path, "r", encoding="utf-8") as f:
+                    part_data = json.load(f)
+                    all_athletes_for_sport.extend(part_data)
+            else:
+                if not os.path.exists(page_pdf_path):
+                    print(f"  Warning: PDF segment for {sport_part_name} not found.")
+                    all_parts_available = False
+                    break
+
+                print(f"  Converting {sport_part_name}...")
+                extracted = parse_athlete_pdf(
+                    page_pdf_path, PROJECT, base_sport, save_to_json=True, 
+                    output_json_path=part_cache_path,
+                    expected_first=data.get("first_athlete"),
+                    expected_last=data.get("last_athlete")
+                )
+                
+                if extracted:
+                    all_athletes_for_sport.extend(extracted)
+                else:
+                    print(f"  Error: Failed to extract data for {sport_part_name}.")
+                    all_parts_available = False
+                    break
+
+        if all_parts_available and all_athletes_for_sport:
+            with open(final_json_path, "w", encoding="utf-8") as f:
+                json.dump(all_athletes_for_sport, f, indent=4)
+            print(f"Successfully consolidated {len(all_athletes_for_sport)} records into {final_json_path}")
+            
+            # Cleanup: Remove temporary cache files after successful consolidation
+            for sport_part_name, _ in parts:
+                part_fn = sport_part_name.lower().replace(" ", "_").replace("/", "_")
+                cache_path = os.path.join(OUTPUT_DIR, f"cache_{part_fn}.tmp")
+                if os.path.exists(cache_path):
+                    os.remove(cache_path)
+        elif not all_parts_available:
+            print(f"  Consolidation for {base_sport} aborted due to missing parts.")

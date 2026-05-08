@@ -84,17 +84,44 @@ def ingest_hometown_registry(project_id: str, dataset_id: str):
         return
 
     # 2. Ingest into BigQuery
-    logging.info(f"Ingesting {len(rows)} hometown records into {table_ref}...")
-    
-    job_config = bigquery.LoadJobConfig(
-        schema=schema,
-        write_disposition="WRITE_TRUNCATE", # Replace the registry with the latest aggregation
-    )
+    logging.info(f"Processing {len(rows)} hometown records for {table_ref}...")
 
-    job = client.load_table_from_json(rows, table_ref, job_config=job_config)
-    job.result()  # Wait for completion
+    # Check if the table exists to determine if we can MERGE or must do an initial LOAD
+    try:
+        client.get_table(table_ref)
+        table_exists = True
+    except NotFound:
+        table_exists = False
 
-    logging.info(f"Successfully loaded hometown registry into BigQuery.")
+    if not table_exists:
+        logging.info("Target table not found. Performing initial load.")
+        job_config = bigquery.LoadJobConfig(schema=schema, write_disposition="WRITE_TRUNCATE")
+        client.load_table_from_json(rows, table_ref, job_config=job_config).result()
+    else:
+        # Perform an UPSERT using a staging table and MERGE statement
+        staging_table_ref = f"{table_ref}_staging"
+        logging.info(f"Table exists. Performing upsert via staging: {staging_table_ref}")
+
+        staging_config = bigquery.LoadJobConfig(schema=schema, write_disposition="WRITE_TRUNCATE")
+        client.load_table_from_json(rows, staging_table_ref, job_config=staging_config).result()
+
+        merge_query = f"""
+            MERGE `{table_ref}` T
+            USING `{staging_table_ref}` S
+            ON T.hometown = S.hometown
+            WHEN MATCHED THEN
+              UPDATE SET 
+                total_athletes = S.total_athletes,
+                sports = S.sports,
+                load_timestamp = S.load_timestamp
+            WHEN NOT MATCHED THEN
+              INSERT (hometown, total_athletes, sports, lat, lng, regional_elevation, hometown_id, region, load_timestamp)
+              VALUES (S.hometown, S.total_athletes, S.sports, S.lat, S.lng, S.regional_elevation, S.hometown_id, S.region, S.load_timestamp)
+        """
+        client.query(merge_query).result()
+        client.delete_table(staging_table_ref, not_found_ok=True)
+
+    logging.info(f"Successfully synchronized hometown registry in BigQuery.")
 
 if __name__ == "__main__":
     PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")

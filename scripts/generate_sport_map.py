@@ -54,7 +54,8 @@ def get_sport_mapping(pdf_path: str, project_id: str, location: str = "us-centra
         cleaned_sport_map[sport] = {
             "pages": cleaned_page_list,
             "first_athlete": data.get("first_athlete") if isinstance(data, dict) else None,
-            "last_athlete": data.get("last_athlete") if isinstance(data, dict) else None
+            "last_athlete": data.get("last_athlete") if isinstance(data, dict) else None,
+            "source_pdf": os.path.basename(pdf_path)
         }
     return cleaned_sport_map
 
@@ -65,15 +66,22 @@ if __name__ == "__main__":
 
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     RESOURCES_DIR = os.path.join(SCRIPT_DIR, "resources")
-    INPUT_PDF = os.path.join(RESOURCES_DIR, "AllTimeHistory.pdf")
     SPORT_MAP_FILE = os.path.join(RESOURCES_DIR, "sport_map.json")
+    # Handle two separate sources for Paralympic data
+    INPUT_PDFS = ["ParaSummer.pdf", "ParaWinter.pdf"]
 
-    if not os.path.exists(INPUT_PDF):
-        print(f"Error: Source PDF not found at {INPUT_PDF}")
-    else:
-        print(f"Generating sport mapping for: {INPUT_PDF}")
-        sport_map = get_sport_mapping(INPUT_PDF, PROJECT)
+    combined_sport_map = {}
+    for pdf_name in INPUT_PDFS:
+        input_pdf_path = os.path.join(RESOURCES_DIR, pdf_name)
+        if not os.path.exists(input_pdf_path):
+            print(f"Warning: Source PDF not found at {input_pdf_path}. Skipping.")
+            continue
+            
+        print(f"Generating sport mapping for: {input_pdf_path}")
+        sport_map_segment = get_sport_mapping(input_pdf_path, PROJECT)
+        combined_sport_map.update(sport_map_segment)
 
+    if combined_sport_map:
         with open(SPORT_MAP_FILE, "w", encoding="utf-8") as f:
-            json.dump(sport_map, f, indent=4)
-        print(f"Sport mapping saved to {SPORT_MAP_FILE}")
+            json.dump(combined_sport_map, f, indent=4)
+        print(f"Combined sport mapping saved to {SPORT_MAP_FILE}")

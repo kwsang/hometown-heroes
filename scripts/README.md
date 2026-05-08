@@ -12,7 +12,7 @@ This document outlines the Extract, Transform, and Load (ETL) pipeline used to p
 
 ```mermaid
 graph TD
-    A[AllTimeHistory.pdf] --> B{generate_sport_map.py};
+    A[ParaSummer.pdf & ParaWinter.pdf] --> B{generate_sport_map.py};
     B --> C[resources/sport_map.json];
     C --> D{split_pdfs.py};
     D --> E[resources/pages/*.pdf];
@@ -40,9 +40,9 @@ graph TD
 ### 1. Generate Sport Map
 
 *   **Script:** `generate_sport_map.py`
-*   **Purpose:** This script is the initial extraction phase. It analyzes the entire `AllTimeHistory.pdf` to identify the page ranges for each sport. It also extracts the `first_athlete` and `last_athlete` names for each sport section, which are crucial for boundary validation in subsequent parsing steps.
+*   **Purpose:** This script is the initial extraction phase. It analyzes `ParaSummer.pdf` and `ParaWinter.pdf` to identify the page ranges for each sport. It also extracts the `first_athlete` and `last_athlete` names for each sport section, which are crucial for boundary validation in subsequent parsing steps.
 *   **Gemini Calls:** One call to `gemini-2.5-flash` (or `gemini-2.5-flash-lite`) with the entire PDF as input. The model is instructed to return a JSON mapping of sport names to page lists and athlete boundaries.
-*   **Input:** `resources/AllTimeHistory.pdf`
+*   **Input:** `resources/ParaSummer.pdf`, `resources/ParaWinter.pdf`
 *   **Output:** `resources/sport_map.json`
 *   **Estimated Processing Time:** ~1-2 minutes (depends on PDF size and API latency).
 
@@ -52,9 +52,9 @@ graph TD
 *   **Purpose:** This script takes the `sport_map.json` and performs two key functions:
     1.  **Consolidation:** It first merges any existing "Part X" entries back into their base sport names, ensuring a clean starting point for chunking.
     2.  **Chunking:** It then re-chunks large sport sections (e.g., "Track & Field") into smaller PDF segments (e.g., 3-5 pages each) to manage Gemini's output token limits during the parsing phase.
-    3.  **Splitting:** It uses `pypdf` to extract the specified page ranges from `AllTimeHistory.pdf` and saves them as individual PDF files (e.g., `resources/pages/track_&_field_(part_1).pdf`).
+    3.  **Splitting:** It uses `pypdf` to extract the specified page ranges from the source PDFs and saves them as individual PDF files (e.g., `resources/pages/track_&_field_(part_1).pdf`).
 *   **Gemini Calls:** None. This is a Python-only PDF manipulation step.
-*   **Input:** `resources/AllTimeHistory.pdf`, `resources/sport_map.json`
+*   **Input:** `resources/ParaSummer.pdf`, `resources/ParaWinter.pdf`, `resources/sport_map.json`
 *   **Output:** Multiple `.pdf` files in `resources/pages/` (e.g., `archery.pdf`, `basketball_(part_1).pdf`).
 *   **Estimated Processing Time:** ~1-5 minutes (depends on PDF size and number of segments).
 
@@ -140,7 +140,7 @@ re.sub(r'(\s\(Part \d+\))+', '', sport)
 
 To get accurate statistics, you would typically instrument your scripts with timing and data size measurements.
 
-*   **Input PDF Size:** `resources/AllTimeHistory.pdf` - [e.g., 15 MB]
+*   **Input PDF Sizes:** `ParaSummer.pdf` and `ParaWinter.pdf`
 *   **Number of Sports (Initial):** [e.g., 50]
 *   **Number of PDF Segments (after chunking):** [e.g., 75]
 *   **Total Athletes Extracted:** [e.g., 15,000]

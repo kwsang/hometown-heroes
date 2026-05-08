@@ -8,13 +8,30 @@ from typing import Dict
 # Load environment variables from .env file
 load_dotenv()
 
-def split_pdf_by_sport(input_pdf_path: str, sport_map: Dict[str, Dict], pages_dir: str):
+def split_pdf_by_sport(resources_dir: str, sport_map: Dict[str, Dict], pages_dir: str):
     """
-    Splits the input PDF into sport-specific files based on the provided sport mapping.
+    Splits the input PDFs into sport-specific files based on the provided sport mapping.
+    Dynamically opens the source PDF specified for each sport entry.
     """
-    reader = PdfReader(input_pdf_path)
+    readers = {} # Cache readers for performance
+    
     for sport, data in sport_map.items():
         pages = data.get("pages", [])
+        source_pdf_name = data.get("source_pdf")
+        
+        if not source_pdf_name:
+            print(f"Warning: No source PDF associated with {sport}. Skipping.")
+            continue
+
+        if source_pdf_name not in readers:
+            pdf_path = os.path.join(resources_dir, source_pdf_name)
+            if os.path.exists(pdf_path):
+                readers[source_pdf_name] = PdfReader(pdf_path)
+            else:
+                print(f"Error: Source PDF {pdf_path} not found for sport {sport}.")
+                continue
+
+        reader = readers[source_pdf_name]
         sport_filename = sport.lower().replace(" ", "_").replace("/", "_")
         page_pdf_path = os.path.join(pages_dir, f"{sport_filename}.pdf")
         
@@ -34,14 +51,11 @@ if __name__ == "__main__":
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     RESOURCES_DIR = os.path.join(SCRIPT_DIR, "resources")
     PAGES_DIR = os.path.join(RESOURCES_DIR, "pages")
-    INPUT_PDF = os.path.join(RESOURCES_DIR, "AllTimeHistory.pdf")
     SPORT_MAP_FILE = os.path.join(RESOURCES_DIR, "sport_map.json")
 
     os.makedirs(PAGES_DIR, exist_ok=True)
 
-    if not os.path.exists(INPUT_PDF):
-        print(f"Error: Source PDF not found at {INPUT_PDF}")
-    elif not os.path.exists(SPORT_MAP_FILE):
+    if not os.path.exists(SPORT_MAP_FILE):
         print(f"Error: Sport mapping file not found at {SPORT_MAP_FILE}. Run generate_sport_map.py first.")
     else:
         print(f"Loading sport map from {SPORT_MAP_FILE}")
@@ -59,7 +73,8 @@ if __name__ == "__main__":
                 consolidated_source[base_name] = {
                     "pages": [],
                     "first_athlete": None,
-                    "last_athlete": None
+                    "last_athlete": None,
+                    "source_pdf": data.get("source_pdf") # Carry over source PDF reference
                 }
             
             # Merge pages and ensure they are sorted
@@ -87,7 +102,8 @@ if __name__ == "__main__":
                     chunked_map[part_name] = {
                         "pages": chunk_pages,
                         "first_athlete": data.get("first_athlete") if i == 0 else None,
-                        "last_athlete": data.get("last_athlete") if i == len(chunks) - 1 else None
+                        "last_athlete": data.get("last_athlete") if i == len(chunks) - 1 else None,
+                        "source_pdf": data.get("source_pdf") # Propagate source to part chunks
                     }
 
         # Update the sport_map file so downstream scripts (parser) use the chunks
@@ -96,5 +112,5 @@ if __name__ == "__main__":
         print(f"Updated {SPORT_MAP_FILE} with chunked sport entries.")
         
         print("\n--- Starting PDF Splitting ---")
-        split_pdf_by_sport(INPUT_PDF, chunked_map, PAGES_DIR)
+        split_pdf_by_sport(RESOURCES_DIR, chunked_map, PAGES_DIR)
         print("\nSplitting complete. Please verify the files in resources/pages.")
