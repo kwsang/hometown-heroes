@@ -1,9 +1,11 @@
 fastapi
 uvicorn
+gunicorn
 google-cloud-bigquery
 google-cloud-aiplatform
-pydantic
-aiofiles
-python-dotenv
-jinja2
+google-auth
 pandas
+db-dtypes
+jinja2
+pypdf
+python-multipart
