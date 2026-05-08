@@ -131,7 +131,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                         marker.athleteCount = hub.athlete_count;
                         markers.push(marker);
 
-                        marker.addListener("click", () => {{
+                        marker.addListener("gmp-click", () => {{
                             openDrawer(hub.id, hub.pretty_city_name);
                         }});
                     }});
@@ -182,10 +182,8 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                     }});
                 }}
                 {hub_drawer_service.get_drawer_js(api_key)}
-
-                initMap();
             </script>
-            <script async src="https://maps.googleapis.com/maps/api/js?key={google_maps_api_key}&callback=initMap&v=beta&libraries=marker"></script>
+            <script async src="https://maps.googleapis.com/maps/api/js?key={google_maps_api_key}&callback=initMap&v=beta&libraries=marker&loading=async"></script>
             <div class="mt-8 text-center">
                 <a href="/" class="text-blue-600 hover:underline text-sm font-bold uppercase tracking-widest">
                     &larr; Back to Home
