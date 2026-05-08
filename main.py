@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+import google.auth
 from services.gemini_service import GeminiNarrativeService
 from services.bigquery_service import BigQueryService
 from services.frontend_service import render_landing_page, render_hub_detail_page
@@ -76,10 +77,18 @@ app.mount("/img", StaticFiles(directory="img"), name="img")
 # Mount the static directory for CSS and other assets
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+# Attempt to get the Project ID from the environment, falling back to 
+# Google's auth discovery (which works automatically on Cloud Run)
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID")
 
 if not PROJECT_ID:
-    raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set.")
+    try:
+        _, PROJECT_ID = google.auth.default()
+    except Exception:
+        logging.error("Failed to auto-discover Google Cloud Project ID.")
+
+if not PROJECT_ID:
+    raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set and could not be auto-discovered.")
 
 gemini_engine = GeminiNarrativeService(project_id=PROJECT_ID)
 data_engine = BigQueryService(project_id=PROJECT_ID)
