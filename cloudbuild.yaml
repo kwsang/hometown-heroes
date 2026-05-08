@@ -21,6 +21,8 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1'
       - '--set-secrets'
       - 'API_KEY=MY_API_KEY_SECRET:latest,GOOGLE_MAPS_API_KEY=MY_MAPS_KEY_SECRET:latest'
 

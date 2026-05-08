@@ -45,5 +45,11 @@ The project is powered by a robust ETL pipeline and a multi-tiered AI architectu
 *   `pandas` for local data aggregation.
 *   `google-cloud-aiplatform` and `google-cloud-bigquery` for GCP integration.
 
+### 🔑 Prerequisites & Permissions
+To successfully deploy and manage this project, ensure your Google Cloud user or service account has the following roles and permissions:
+*   **Deployment:** `Cloud Run Admin`, `Cloud Build Editor`, and `Service Account User`.
+*   **Data & AI:** `BigQuery Data Editor`, `BigQuery User`, and `Vertex AI User`.
+*   **Observability:** To view and debug application logs, you must have the `logging.logEntries.list` permission (typically included in **Project Viewer** or **Logs Viewer** roles).
+
 ---
 *This project was developed for the Team USA Hackathon, adhering to all athlete NIL protections and official terminology requirements.*
