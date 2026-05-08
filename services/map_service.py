@@ -51,9 +51,9 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
         <div class="flex flex-col space-y-2 min-w-[200px] border-l border-slate-200 pl-6 ml-auto">
             <label for="athlete-range" class="text-xs font-bold text-slate-500 uppercase tracking-widest flex justify-between">
                 <span>Min Athletes</span>
-                <span id="range-value" class="text-blue-600 font-black">1</span>
+                <span id="range-value" class="text-blue-600 font-black">4</span>
             </label>
-            <input type="range" id="athlete-range" min="1" max="100" value="1" 
+            <input type="range" id="athlete-range" min="1" max="100" value="4" 
                    class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                    oninput="updateAthleteFilter(this.value)">
         </div>
@@ -84,7 +84,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                 let map;
                 const markers = [];
                 const selectedRegions = new Set();
-                let minAthletes = 1;
+                let minAthletes = 4;
                 const hubs = [
                     {hubs_js}
                 ];
@@ -140,6 +140,9 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                     const maxAthletes = Math.max(...hubs.map(h => h.athlete_count), 10);
                     const rangeInput = document.getElementById('athlete-range');
                     if (rangeInput) rangeInput.max = maxAthletes;
+
+                    // Apply initial filters
+                    updateFilters();
                 }}
 
                 window.toggleRegion = (region) => {{
