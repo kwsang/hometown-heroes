@@ -43,6 +43,7 @@ class BigQueryService:
                 lng # Longitude of the region (e.g., city center)
             FROM `{self.client.project}.team_usa_data.hometown_hubs`
             WHERE hometown_id = @hometown_id
+            ORDER BY athlete_count DESC, sport_name ASC
         """
         job_config = bigquery.QueryJobConfig(
             query_parameters=[

@@ -52,27 +52,29 @@ def get_insights_html() -> str:
                 </div>
     """
 
-def get_insights_js() -> str:
+def get_insights_js(api_key: str) -> str:
     """
     Returns the JS logic to fetch and display the hub narrative.
     Assumes 'hubId' is available in the parent JavaScript scope.
     """
-    return """
+    return f"""
                 // Fetch narrative lazily to prioritize UI responsiveness
-                fetch(`/api/v1/hubs/${hubId}/narrative`)
+                fetch(`/api/v1/hubs/${{hubId}}/narrative`, {{
+                    headers: {{ 'Authorization': `Bearer {api_key}` }} 
+                }})
                     .then(res => res.json())
-                    .then(data => {
+                    .then(data => {{
                         const narrativeEl = document.getElementById('narrative-text');
-                        if (narrativeEl) {
+                        if (narrativeEl) {{
                             narrativeEl.classList.remove('animate-pulse');
-                            narrativeEl.innerText = `"${data.narrative}"`;
-                        }
-                    })
-                    .catch(err => {
+                            narrativeEl.innerHTML = `"\${{data.narrative}}"`;
+                        }}
+                    }})
+                    .catch(err => {{
                         const narrativeEl = document.getElementById('narrative-text');
-                        if (narrativeEl) {
+                        if (narrativeEl) {{
                             narrativeEl.classList.remove('animate-pulse');
                             narrativeEl.innerText = "Regional insights are currently unavailable.";
-                        }
-                    });
+                        }}
+                    }});
     """

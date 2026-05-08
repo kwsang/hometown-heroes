@@ -178,7 +178,7 @@ class HubService:
             ['hometown_id', 'hometown', 'region', 'lat', 'lng', 'regional_elevation']
         ).agg(
             total_athlete_count=('athlete_id', 'count'),
-            sports=('sport', lambda x: [{"sport": s, "count": int(c)} for s, c in sorted(x.value_counts().items())]),
+            sports=('sport', lambda x: [{"sport": s, "count": int(c)} for s, c in sorted(x.value_counts().items(), key=lambda item: item[1], reverse=True)]),
             narrative=('narrative', 'first'),
             narrative_timestamp=('narrative_timestamp', 'first'),
             hub_image=('hub_image', 'first')

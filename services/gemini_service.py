@@ -21,7 +21,7 @@ class GeminiNarrativeService:
         )
         
         # Using Gemini 2.5 Pro as specified in project requirements
-        self.model = GenerativeModel("gemini-2.5-pro", system_instruction=system_instruction)
+        self.model = GenerativeModel("gemini-2.5-pro", system_instruction=system_instruction) # Consider pinning a specific version
 
     async def generate_hub_narrative(self, region_name: str, stats: List[Dict[str, Any]], climate_data: Dict[str, Any]):
         """
@@ -46,6 +46,7 @@ class GeminiNarrativeService:
             safety_settings=safety_settings
         )
         
+        # Check for prompt feedback that might indicate safety blocks
         # Safely handle empty or blocked responses
         if response.candidates and response.candidates[0].content.parts:
             return response.text

@@ -21,8 +21,9 @@ graph TD
     G --> H{update_json_with_gemini.py} --> I[resources/output/*.json enriched];
     M[resources/processed/*.json] --> J{sync_hometowns_to_processed.py};
     J --> I;
-    I --> K{ingest_hometown_data.py};
-    I --> Q{generate_hometown_registry.py};
+    I --> U{clean_hometown_formats.py} --> V[resources/output/*.json cleaned];
+    V --> K{ingest_hometown_data.py};
+    V --> Q{generate_hometown_registry.py};
     M --> Q;
     Q --> R[resources/hometown_registry.json] --> S{ingest_hometown_registry.py};
     S --> T[BigQuery: hometown_registry table];
@@ -31,6 +32,7 @@ graph TD
     L --> N{process_geocoding.py};
     N --> O[BigQuery: hometown_hubs table];
     N --> P[BigQuery: regional_hubs_summary table];
+    W[Web App] -- "Imagen & Gemini Cache" --> P; # Web App populates cache in P
 ```
 
 ## ETL Steps and Script Details
@@ -163,6 +165,6 @@ To get accurate statistics, you would typically instrument your scripts with tim
 *   **Multimodal PDF Understanding:** `generate_sport_map.py` and `parse_athlete_pdf.py` utilize Gemini's multimodal capabilities to directly interpret PDF content (text, layout, headers) for structural analysis and data extraction. This avoids complex OCR pre-processing.
 *   **Structured Data Extraction:** `parse_athlete_pdf.py` is heavily tuned to extract athlete data into a compact, machine-readable JSON format, handling multi-column layouts, wrapped text, and enforcing strict output schemas.
 *   **Knowledge Retrieval/Text Generation:** `update_json_with_gemini.py` (and `run_enrichment.py`) use Gemini's text generation capabilities to query for specific factual information (hometowns) based on athlete names and sports.
-*   **Efficiency & Robustness:** The pipeline incorporates strategies like chunking, compact output formats, retry mechanisms with exponential backoff, and dynamic prompt refinement to optimize Gemini API usage and handle potential errors or rate limits.
+*   **Efficiency & Robustness:** The pipeline incorporates strategies like chunking, compact output formats, retry mechanisms with exponential backoff, dynamic prompt refinement, and **API Hardening (API Keys + CORS)** to protect against unauthorized usage and quota exhaustion.
 
 This structured approach ensures a reliable and efficient ETL process for transforming raw PDF data into actionable insights within Google Cloud.

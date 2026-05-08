@@ -22,15 +22,11 @@ def get_hero_section() -> str:
 
 def get_stats_grid() -> str:
     return """
-    <div class="grid grid-cols-2 gap-4 mb-8">
-        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <span class="block text-2xl mb-1">🏅</span>
-            <span class="text-xs font-bold text-slate-500 uppercase">Olympic Games</span>
-        </div>
-        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <span class="block text-2xl mb-1">🦾</span>
-            <span class="text-xs font-bold text-slate-500 uppercase">Paralympic Games</span>
-        </div>
+    <div class="mb-8">
+        <a href="/hubs" class="bg-slate-50 p-4 rounded-xl border border-slate-100 block hover:bg-slate-100 transition">
+            <span class="block text-2xl mb-1">📍</span>
+            <span class="text-xs font-bold text-slate-500 uppercase">Regional Hubs</span>
+        </a>
     </div>
     """
 
@@ -79,7 +75,7 @@ def render_landing_page() -> str:
     """
 
 
-def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None) -> str:
+def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None, api_key: str = None) -> str:
     # Format the hometown ID for display (e.g., boulder-co -> Boulder Co)
     display_name = hometown_id.replace('-', ' ').title()
     region = stats[0].get("region", "Global") if stats else "Unknown"
@@ -89,7 +85,9 @@ def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None)
     if not narrative:
         async_narrative_script = f"""
         <script>
-            fetch('/api/v1/hubs/{hometown_id}')
+            fetch('/api/v1/hubs/{hometown_id}', {{
+                headers: {{ 'Authorization': 'Bearer {api_key}' }}
+            }})
                 .then(response => response.json())
                 .then(data => {{
                     const el = document.getElementById('narrative-text');

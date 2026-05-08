@@ -1,6 +1,11 @@
 import os
 import logging
-from fastapi import FastAPI, HTTPException
+from typing import Annotated, Dict, List
+from datetime import datetime, timedelta
+from collections import defaultdict
+from fastapi import FastAPI, HTTPException, Depends, Request, Path
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from services.gemini_service import GeminiNarrativeService
@@ -14,9 +19,51 @@ from dotenv import load_dotenv
 # Ensure environment variables are loaded before initializing services
 load_dotenv()
 
+# --- Security: API Key Authentication ---
+# In a real-world scenario, you'd use a more robust auth mechanism (e.g., OAuth2, JWT)
+# For simple API key protection, this is a basic example.
+API_KEY = os.getenv("API_KEY")
+
+if not API_KEY:
+    logging.warning("API_KEY environment variable is not set. API endpoints will be inaccessible.")
+
+def verify_api_key(auth: Annotated[HTTPAuthorizationCredentials, Depends(HTTPBearer())]):
+    if auth.credentials != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    return auth
+
+# --- Simple In-Memory Rate Limiting ---
+# Tracks hits per IP address in a 1-minute window
+request_history: Dict[str, List[datetime]] = defaultdict(list)
+
+def rate_limiter(request: Request):
+    client_ip = request.client.host
+    now = datetime.now()
+    
+    # Cleanup: Remove requests older than 60 seconds
+    request_history[client_ip] = [t for t in request_history[client_ip] if now - t < timedelta(minutes=1)]
+    
+    if len(request_history[client_ip]) > 30: # Limit to 30 requests per minute per IP
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again in a minute.")
+    
+    request_history[client_ip].append(now)
+
+# --- End Security ---
+
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Hometown Heroes API")
+
+# --- Hardening: Restrict CORS Origins ---
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount the static images directory so the browser can access the favicon
 app.mount("/img", StaticFiles(directory="img"), name="img")
@@ -44,9 +91,9 @@ async def hubs_page():
     # Dynamically fetch hub locations from BigQuery
     hubs = data_engine.get_all_hubs()
     google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY",)
-    return render_hubs_page(hubs, google_maps_api_key)
+    return render_hubs_page(hubs, google_maps_api_key, API_KEY)
 
-@app.get("/.well-known/appspecific/com.chrome.devtools.json")
+@app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
 async def silence_chrome_devtools():
     # This route exists purely to silence 404 logs from Chrome DevTools
     return {}
@@ -59,12 +106,17 @@ async def hub_detail_page(hometown_id: str):
         if not stats:
             raise HTTPException(status_code=404, detail="Hub not found")
 
-        return render_hub_detail_page(hometown_id, stats)
+        return render_hub_detail_page(hometown_id, stats, api_key=API_KEY)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/v1/hubs/{hometown_id}/stats")
-async def get_hub_stats(hometown_id: str):
+@app.get(
+    "/api/v1/hubs/{hometown_id}/stats", 
+    dependencies=[Depends(verify_api_key), Depends(rate_limiter)]
+)
+async def get_hub_stats(
+    hometown_id: Annotated[str, Path(pattern="^[a-z0-9\-]+$")]
+):
     try:
         # Get Aggregate Data from BigQuery (Cached)
         stats = data_engine.get_aggregate_hub_stats(hometown_id)
@@ -77,8 +129,13 @@ async def get_hub_stats(hometown_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/v1/hubs/{hometown_id}/narrative")
-async def get_hub_narrative(hometown_id: str):
+@app.get(
+    "/api/v1/hubs/{hometown_id}/narrative", 
+    dependencies=[Depends(verify_api_key), Depends(rate_limiter)]
+)
+async def get_hub_narrative(
+    hometown_id: Annotated[str, Path(pattern="^[a-z0-9\-]+$")]
+):
     try:
         # Use the specialized AI Insights service to handle narrative generation
         narrative = await insights_engine.get_narrative(hometown_id)
@@ -89,8 +146,15 @@ async def get_hub_narrative(hometown_id: str):
         logging.error(f"Narrative endpoint failure: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/v1/hubs/{hometown_id}/image")
-async def get_hub_image(hometown_id: str, pretty_name: str, region: str):
+@app.get(
+    "/api/v1/hubs/{hometown_id}/image", 
+    dependencies=[Depends(verify_api_key), Depends(rate_limiter)]
+)
+async def get_hub_image(
+    hometown_id: Annotated[str, Path(pattern="^[a-z0-9\-]+$")], 
+    pretty_name: str, 
+    region: str
+):
     try:
         base64_image = await image_engine.get_hub_image(hometown_id, pretty_name, region)
         if not base64_image:
@@ -104,7 +168,7 @@ async def get_hub_image(hometown_id: str, pretty_name: str, region: str):
         logging.error(f"Image endpoint failure: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/v1/hubs/{hometown_id}")
+@app.get("/api/v1/hubs/{hometown_id}", dependencies=[Depends(verify_api_key)]) # Protect this endpoint
 async def get_hub_details(hometown_id: str):
     try:
         stats = data_engine.get_aggregate_hub_stats(hometown_id)
