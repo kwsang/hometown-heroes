@@ -8,7 +8,7 @@ The inspiration for **Hometown Heroes** stems from a desire to celebrate the col
 The project is powered by a robust ETL pipeline and a multi-tiered AI architecture:
 1.  **Data Extraction:** We used **Gemini 2.5 Flash Lite** to perform multimodal parsing of official Team USA athlete PDFs. This allowed us to extract structured data from complex layouts without manual OCR.
 2.  **Enrichment:** Athlete data was enriched with hometown geocoding via the **Google Maps API** and elevation data to analyze geographic trends.
-3.  **Intelligence & Narratives:** We leveraged **Gemini 2.5 Pro** to generate compliant, inspiring narratives for each regional hub, correlating local terrain and climate with sport-specific success.
+3.  **Intelligence & Narratives:** We leveraged **Gemini 2.5 Pro** to generate compliant, inspiring narratives for each regional hub, correlating local terrain and climate with sport-specific success. Strict terminology controls ensure compliance with Olympic and Paralympic branding.
 4.  **Asset Optimization:** Using **Imagen 3.0**, we generate custom hub imagery, which is then optimized into `.webp` format and served via **Google Cloud Storage** for lightning-fast frontend delivery.
 5.  **Multi-Tiered Storage:** **Google BigQuery** acts as our analytical source of truth and narrative cache, while **Cloud Firestore** serves as a high-performance NoSQL serving layer for sub-second map and drawer responsiveness.
 

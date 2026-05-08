@@ -19,11 +19,18 @@ class GeminiNarrativeService:
             "4. NO 'PAST': Never use 'former' or 'past' Olympian/Paralympian. They are always Olympians/Paralympians.\n"
             "5. CAUSATION: Use conditional phrasing like 'could help find' or 'suggests a link'. Do not state geography is the cause.\n"
             "6. HUB LOGIC: Focus on why this specific region is a hub for certain sports based on terrain or climate.\n"
-            "7. EMPHASIS: Use HTML <strong> tags for bolding sport names or key geographical features. Do NOT use markdown bolding like **text**; only use HTML tags. Ensure sport names are in Title Case, not ALL CAPS."
+            "7. EMPHASIS: Use HTML <strong> tags for bolding sport names or key geographical features. Do NOT use markdown bolding like **text**; only use HTML tags. Ensure sport names are in Title Case, not ALL CAPS.\n"
+            "8. STRUCTURE: Begin with a brief analysis of the specific climatic/geographical advantages for Paralympic athletes if present in the data."
         )
         
         # Using Gemini 2.5 Pro as specified in project requirements
         self.model = GenerativeModel("gemini-2.5-pro", system_instruction=system_instruction) # Consider pinning a specific version
+
+        # Configure safety settings once during initialization
+        self.safety_settings = {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
+        }
 
     async def generate_hub_narrative(self, region_name: str, stats: List[Dict[str, Any]], climate_data: Dict[str, Any]):
         """
@@ -33,20 +40,17 @@ class GeminiNarrativeService:
             f"Analyze the {region_name} hub using this data:\n"
             f"- Aggregate Sport Stats: {stats}\n"
             f"- Climate/Geography: {climate_data}\n\n"
-            "Generate a narrative that connects the environment to the sports presence, "
+            "Step 1: Identify 2-3 specific geographical or climatic correlations for the dominant sports.\n"
+            "Step 2: Note any specific environmental factors that support Paralympic excellence in this region.\n"
+            "Step 3: Synthesize these findings into an inspiring, compliant narrative.\n\n"
+            "Final Output: Generate a narrative that connects the environment to the sports presence, "
             "emphasizing the collective power of Team USA in this area."
         )
-        
-        # Configure safety settings
-        safety_settings = {
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
-        }
 
         try:
             response = await self.model.generate_content_async(
                 prompt,
-                safety_settings=safety_settings
+                safety_settings=self.safety_settings
             )
         except google_exceptions.ResourceExhausted:
             logging.error(f"Gemini Rate Limit Exceeded for hub: {region_name}")

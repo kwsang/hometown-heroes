@@ -1,5 +1,6 @@
 import logging
 import math
+import time
 from typing import List, Dict, Any, Optional
 from google.cloud import firestore
 
@@ -14,12 +15,16 @@ class FirestoreService:
 
     def get_all_hubs(self) -> List[Dict[str, Any]]:
         """Fetches all hub summaries for map rendering."""
+        start_time = time.time()
         docs = self.db.collection(self.collection_name).stream()
         hubs = []
         for doc in docs:
             hub_data = doc.to_dict()
             hub_data['id'] = doc.id
             hubs.append(hub_data)
+        
+        duration = time.time() - start_time
+        logging.info(f"Firestore: Fetched {len(hubs)} hubs in {duration:.4f}s")
         return hubs
 
     def get_hub(self, hometown_id: str) -> Optional[Dict[str, Any]]:

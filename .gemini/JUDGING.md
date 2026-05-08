@@ -12,11 +12,11 @@ Does the application solve a fan-centric question for Team USA? Is the vision in
 
 ## Technical Depth & Execution (30%)
 
-Does the app work? How effectively are Gemini’s capabilities (multimodality, reasoning, context) implemented? Is the technology real, functional, well-engineered, and not faked for the demo? Did you use Gemini and Google Cloud in new ways?
+Does the application work? How effectively does it utilize Gemini’s advanced capabilities (multimodality, reasoning, context)? How well is it implemented on Google Cloud? Is the technology real, functional, well-engineered, and not just faked for the demo? Did you use Gemini and Google Cloud in new ways?
 
 ## Presentation Quality (30%)
 
-How exciting is the demo? Does it tell a story? Does it clearly and effectively demo the product in action, showing great UX, the problem it solves for Team USA, and how it uses Gemini and Google Cloud? Does it respect all content restrictions?
+How exciting, engaging, and well-produced is the video? Does it tell a powerful story that captures the viewer's imagination? Does it clearly and effectively demonstrate the product in action, showcasing a great user experience, the problem it solves for Team USA, and how it was built using Gemini and Google Cloud? Does it have viral potential? Does it tell a powerful story while respecting all content restrictions?
 
 ## Text description
 

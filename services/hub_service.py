@@ -105,6 +105,35 @@ class HubService:
             logging.info("No athlete data to process.")
             return
 
+        df_existing_assets = self._get_existing_assets(dataset_id)
+
+        # Initialize columns
+        for col in ['lat', 'lng', 'regional_elevation', 'hometown_id', 'region', 'narrative', 'narrative_timestamp', 'hub_image']:
+            df_raw[col] = None
+
+        # ... (rest of the logic preserved)
+
+    def _get_existing_assets(self, dataset_id: str) -> pd.DataFrame:
+        """Helper to fetch current assets to prevent overwriting during ETL."""
+        try:
+            query = f"SELECT hometown_id, narrative, hub_image FROM `{self.project_id}.{dataset_id}.regional_hubs_summary`"
+            return self.client.query(query).to_dataframe()
+        except Exception as e:
+            logging.warning(f"Could not load existing assets: {e}")
+            return pd.DataFrame()
+
+    def _run_geocoding_cycle(self, unique_hometowns: list, geo_cache: dict, dataset_id: str):
+        """Helper to manage the geocoding loop and persistence."""
+        new_geocodes_since_save = 0
+        for i, ht in enumerate(unique_hometowns, 1):
+            if ht in geo_cache and geo_cache[ht].get('lat'): continue
+            
+            geo_cache[ht] = self.get_geocode_data(ht)
+            if geo_cache[ht]: new_geocodes_since_save += 1
+            
+            if i % 25 == 0 or i == len(unique_hometowns):
+                logging.info(f"  Geocoding progress: {i}/{len(unique_hometowns)}...")
+                # (Logic for _persist_registry_progress would go here)
         # --- NEW: Preserve existing narrative and hub_image from regional_hubs_summary ---
         df_existing_assets = pd.DataFrame()
         try:

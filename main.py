@@ -190,7 +190,8 @@ async def hub_detail_page(hometown_id: str):
             api_key=API_KEY
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error loading hub detail page for {hometown_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred while loading the hub details.")
 
 @app.get(
     "/api/v1/hubs/{hometown_id}/stats", 
@@ -209,7 +210,8 @@ async def get_hub_stats(
             "statistics": stats
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error fetching stats for {hometown_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve hub statistics.")
 
 @app.get(
     "/api/v1/hubs/{hometown_id}/narrative", 
@@ -225,8 +227,8 @@ async def get_hub_narrative(
             "narrative": narrative
         }
     except Exception as e:
-        logging.error(f"Narrative endpoint failure: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Narrative endpoint failure for {hometown_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate or retrieve regional narrative.")
 
 @app.get(
     "/api/v1/hubs/{hometown_id}/image", 
@@ -247,8 +249,8 @@ async def get_hub_image(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Image endpoint failure: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Image endpoint failure for {hometown_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to process hub image request.")
 
 @app.get("/api/v1/hubs/{hometown_id}", dependencies=[Depends(verify_api_key)]) # Protect this endpoint
 async def get_hub_details(hometown_id: str):
@@ -263,4 +265,5 @@ async def get_hub_details(hometown_id: str):
             "narrative": narrative
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error fetching full details for {hometown_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve comprehensive hub details.")

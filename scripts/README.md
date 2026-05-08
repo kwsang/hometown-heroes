@@ -28,16 +28,23 @@ graph TD
     Q --> R[resources/hometown_registry.json] --> S{ingest_hometown_registry.py};
     S --> T[BigQuery: hometown_registry table];
     K --> L[BigQuery: athletes table];
-    K --> M[resources/processed/*.json];
     L --> N{process_geocoding.py};
     N --> O[BigQuery: hometown_hubs table];
     N --> P[BigQuery: regional_hubs_summary table];
     N --> FS[(Firestore: hubs collection)];
+    GHN{generate_hub_narratives.py} --> P;
+    GHN --> FS;
+    GHI{generate_hub_images.py} --> P;
+    GHI --> FS;
+    GHI --> GCS[(Cloud Storage: .webp images)];
     W[Web App] -- "High-Speed Serving" --> FS;
-    W -- "Narrative Cache" --> P;
-    W -- "Asset Fetch" --> GCS[(Cloud Storage: .webp images)];
-    MIG{migrate_images_to_gcs.py} -- "Optimize & Sync" --> GCS;
+    W -- "Asset Fetch" --> GCS;
+    MIG{migrate_images_to_gcs.py} -- "Parallel Optimize & Sync" --> GCS;
     MIG --> P;
+    FIX{fix_narratives_formatting.py} --> P;
+    FIX --> FS;
+    DEL{delete_all_narratives.py} --> P;
+    DEL --> FS;
 ```
 
 ## ETL Steps and Script Details

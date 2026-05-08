@@ -14,9 +14,9 @@ Only .md files in .gemini folder.
 Services go in the services/ folder.
 My project name: My First Project
 My Google project ID: [YOUR_GOOGLE_CLOUD_PROJECT_ID]
-Generative Model for complex tasks: gemini-2.5-pro
+Generative Model for complex tasks: gemini-2.5-flash
 Generative Model for high throughput low latency tasks: gemini-2.5-flash-lite
-Generative Model for in-between tasks: gemini-2.5-flash
+Generative Model for in-between tasks: gemini-2.5-flash-lite
 
 ### Data
 
@@ -67,3 +67,7 @@ Keep track of the data sources.
 ### Vibe
 
 Contextualize findings, with the goal of showing how the American landscape fosters Team USA excellence.
+
+### Judging
+
+Use ./gemini/JUDGING.md for guidance on what to focus on and prioritize.

@@ -87,7 +87,7 @@ def get_drawer_js(api_key: str) -> str:
                                 <span class="text-sm font-bold text-slate-900 truncate block uppercase tracking-widest">${{sportName}}</span>
                             </div>
                             <div class="text-right flex-shrink-0">
-                                <span class="inline-block px-2 py-0.5 bg-blue-600 text-white rounded-full text-sm font-bold">${item.athlete_count}</span>
+                                <span class="inline-block px-2 py-0.5 bg-blue-600 text-white rounded-full text-sm font-bold">${{item.athlete_count}}</span>
                             </div>
                         </div>
                     `;
