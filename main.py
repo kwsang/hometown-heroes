@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Depends, Request, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 import google.auth
 from services.gemini_service import GeminiNarrativeService
 from services.bigquery_service import BigQueryService
@@ -26,10 +26,10 @@ except ImportError:
 # --- Security: API Key Authentication ---
 # In a real-world scenario, you'd use a more robust auth mechanism (e.g., OAuth2, JWT)
 # For simple API key protection, this is a basic example.
-API_KEY = os.getenv("API_KEY")
+API_KEY = (os.getenv("API_KEY") or "").strip("'\"")
 
 if not API_KEY:
-    logging.warning("API_KEY environment variable is not set. API endpoints will be inaccessible.")
+    logging.warning("API_KEY environment variable is not set or empty. API endpoints will be inaccessible.")
 
 def verify_api_key(auth: Annotated[HTTPAuthorizationCredentials, Depends(HTTPBearer())]):
     if auth.credentials != API_KEY:
@@ -58,6 +58,26 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Hometown Heroes API")
 
+# --- Security: Content Security Policy (CSP) ---
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    # Define a CSP that allows Google Maps, Google Fonts, and Base64 images from Vertex AI
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://*.google.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com; "
+        "img-src 'self' data: https://maps.gstatic.com https://*.googleapis.com https://*.google.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "frame-src 'self' https://*.google.com; "
+        "connect-src 'self' https://*.googleapis.com https://*.google.com"
+    )
+    response.headers["Content-Security-Policy"] = csp
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+
 # --- Hardening: Restrict CORS Origins ---
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",")
 
@@ -74,6 +94,8 @@ for doc_dir in ["img", "static"]:
     if not os.path.exists(doc_dir):
         os.makedirs(doc_dir)
 
+logging.info(f"Allowed Origins: {ALLOWED_ORIGINS}")
+
 # Mount the static images directory so the browser can access the favicon
 app.mount("/img", StaticFiles(directory="img"), name="img")
 
@@ -87,16 +109,18 @@ async def favicon():
 
 # Attempt to get the Project ID from the environment, falling back to 
 # Google's auth discovery (which works automatically on Cloud Run)
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID")
+PROJECT_ID = (os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or "").strip("'\"")
 
 if not PROJECT_ID:
     try:
         _, PROJECT_ID = google.auth.default()
-    except Exception:
-        logging.error("Failed to auto-discover Google Cloud Project ID.")
+        logging.info(f"Auto-discovered Project ID: {PROJECT_ID}")
+    except Exception as e:
+        logging.error(f"Failed to auto-discover Google Cloud Project ID: {e}")
 
 if not PROJECT_ID:
-    raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set and could not be auto-discovered.")
+    logging.error("CRITICAL: GOOGLE_CLOUD_PROJECT is missing.")
+    raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set.")
 
 gemini_engine = GeminiNarrativeService(project_id=PROJECT_ID)
 data_engine = BigQueryService(project_id=PROJECT_ID)
@@ -116,10 +140,25 @@ async def hubs_page():
     try:
         # Dynamically fetch hub locations from BigQuery
         hubs = data_engine.get_all_hubs()
-        google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+        
+        if not hubs:
+            logging.warning("No hubs found in BigQuery. Ensure ETL processing has run.")
+            # Optional: Return a specific "No Data" page instead of a 500
+        
+        google_maps_api_key = (os.getenv("GOOGLE_MAPS_API_KEY") or "").strip("'\"")
+
+        if not google_maps_api_key:
+            logging.error("GOOGLE_MAPS_API_KEY environment variable is missing. Maps will not initialize.")
+
         return render_hubs_page(hubs, google_maps_api_key, API_KEY)
+    except google.api_core.exceptions.NotFound:
+        logging.error("BigQuery Table 'regional_hubs_summary' not found. Have you run the processing scripts?")
+        raise HTTPException(status_code=503, detail="Database table not initialized. Please run the data ingestion pipeline.")
+    except google.api_core.exceptions.Forbidden as e:
+        logging.error(f"Permission denied accessing BigQuery: {e}")
+        raise HTTPException(status_code=403, detail="The service account does not have permission to read from BigQuery.")
     except Exception as e:
-        logging.error(f"Error loading hubs page: {e}", exc_info=True)
+        logging.error(f"Unexpected error loading hubs page: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to load regional hubs data.")
 
 @app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
