@@ -12,14 +12,14 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
 
         hubs_js_array.append(f"""
             {{
-                id: '{hub['id']}',
-                city: '{hub['city']}',
-                pretty_city_name: '{hub['pretty_city_name']}',
+                id: {json.dumps(hub['id'])},
+                city: {json.dumps(hub['city'])},
+                pretty_city_name: {json.dumps(hub['pretty_city_name'])},
                 athlete_count: {hub['total_athlete_count']},
                 sports: {json.dumps(hub_sports)},
-                lat: {hub['lat']},
-                lng: {hub['lng']},
-                region: '{hub['region']}',
+                lat: {hub['lat'] if hub['lat'] is not None else 'null'},
+                lng: {hub['lng'] if hub['lng'] is not None else 'null'},
+                region: {json.dumps(hub['region'])},
                 description: `{hub['description']}`
             }}
         """)

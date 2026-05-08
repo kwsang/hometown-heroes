@@ -27,7 +27,7 @@ except ImportError:
 # --- Security: API Key Authentication ---
 # In a real-world scenario, you'd use a more robust auth mechanism (e.g., OAuth2, JWT)
 # For simple API key protection, this is a basic example.
-API_KEY = (os.getenv("API_KEY") or "").strip("'\"")
+API_KEY = (os.getenv("API_KEY") or "").strip("'\"").strip()
 
 if not API_KEY:
     logging.warning("API_KEY environment variable is not set or empty. API endpoints will be inaccessible.")
@@ -113,7 +113,7 @@ async def favicon():
 
 # Attempt to get the Project ID from the environment, falling back to 
 # Google's auth discovery (which works automatically on Cloud Run)
-PROJECT_ID = (os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or "").strip("'\"")
+PROJECT_ID = (os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or "").strip("'\"").strip()
 
 if not PROJECT_ID:
     try:
@@ -150,7 +150,7 @@ async def hubs_page():
             logging.warning("No hubs found in BigQuery. Ensure ETL processing has run.")
             # Optional: Return a specific "No Data" page instead of a 500
         
-        google_maps_api_key = (os.getenv("GOOGLE_MAPS_API_KEY") or "").strip("'\"")
+        google_maps_api_key = (os.getenv("GOOGLE_MAPS_API_KEY") or "").strip("'\"").strip()
 
         if not google_maps_api_key:
             logging.error("GOOGLE_MAPS_API_KEY environment variable is missing. Maps will not initialize.")

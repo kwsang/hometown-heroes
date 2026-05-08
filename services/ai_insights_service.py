@@ -49,7 +49,7 @@ def get_insights_html() -> str:
                     <h3 class="text-sm font-bold text-blue-900 mb-2 flex items-center">
                         <span class="mr-2">✨</span> AI Insights
                     </h3>
-                    <p id="narrative-text" class="text-blue-900 leading-relaxed italic opacity-80 text-sm animate-pulse">
+                    <p id="narrative-text" class="text-blue-900 leading-relaxed opacity-80 text-sm animate-pulse">
                         Generating regional narrative...
                     </p>
                 </div>
@@ -62,7 +62,7 @@ def get_insights_js(api_key: str) -> str:
     """
     return f"""
                 // Fetch narrative lazily to prioritize UI responsiveness
-                fetch(`/api/v1/hubs/${{hubId}}/narrative`, {{
+                fetch(`/api/v1/hubs/${{encodeURIComponent(hubId)}}/narrative`, {{
                     headers: {{ 'Authorization': `Bearer {api_key}` }} 
                 }})
                     .then(res => res.json())

@@ -66,7 +66,7 @@ def get_drawer_js(api_key: str) -> str:
             
             try {{
                 // Fetch stats for the sport grid
-                const statsResponse = await fetch(`/api/v1/hubs/${{hubId}}/stats`, {{
+                const statsResponse = await fetch(`/api/v1/hubs/${{encodeURIComponent(hubId)}}/stats`, {{
                     headers: {{ 'Authorization': `Bearer {api_key}` }}
                 }});
                 if (!statsResponse.ok) throw new Error('Failed to fetch stats');
@@ -82,12 +82,12 @@ def get_drawer_js(api_key: str) -> str:
                     // Normalize sport name to Title Case for display
                     const sportName = item.sport_name.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     return `
-                        <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-100 flex justify-between items-center text-sm">
+                        <div class="bg-slate-100 p-2 rounded-xl border border-slate-200 flex justify-between items-center text-sm shadow-sm">
                             <div class="truncate mr-1">
                                 <span class="text-sm font-bold text-slate-900 truncate block uppercase tracking-widest">${{sportName}}</span>
                             </div>
                             <div class="text-right flex-shrink-0">
-                                <span class="inline-block px-2 py-0.5 bg-blue-600 text-white rounded-md text-sm font-bold">${{item.athlete_count}}</span>
+                                <span class="inline-block px-2 py-0.5 bg-blue-600 text-white rounded-full text-sm font-bold">${item.athlete_count}</span>
                             </div>
                         </div>
                     `;
@@ -96,15 +96,16 @@ def get_drawer_js(api_key: str) -> str:
                 document.getElementById('stats-container').innerHTML = sportHtml;
 
                  // Fetch Hub Image lazily (moved to load earlier)
-                fetch(`/api/v1/hubs/${{hubId}}/image?pretty_name=${{encodeURIComponent(prettyName)}}&region=${{encodeURIComponent(region)}}`, {{
+                fetch(`/api/v1/hubs/${{encodeURIComponent(hubId)}}/image?pretty_name=${{encodeURIComponent(prettyName)}}&region=${{encodeURIComponent(region)}}`, {{
                     headers: {{ 'Authorization': `Bearer {api_key}` }}
                 }})
                     .then(res => res.json())
                     .then(data => {{
                         const imgContainer = document.getElementById('hub-image-container');
-                        if (data.image_data) {{
+                        if (data && data.image_data) {{
+                             const rawData = data.image_data.trim().replace(/^<|>$/g, '');
                              // Check if image_data is a GCS URL or a Base64 string
-                            const src = data.image_data.startsWith('http') ? data.image_data : `data:image/png;base64,${{data.image_data}}`;
+                            const src = (rawData.startsWith('http') || rawData.startsWith('https')) ? rawData : `data:image/png;base64,${{rawData}}`;
                             imgContainer.innerHTML = `<img src="${{src}}" class="w-full h-full object-cover">`;
                         }}
                     }})

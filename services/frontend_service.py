@@ -101,14 +101,14 @@ def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None,
     sport_items = ""
     for item in stats:
         sport_items += f"""
-        <div class="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex justify-between items-center">
+        <div class="bg-slate-100 p-6 rounded-3xl border border-slate-200 flex justify-between items-center shadow-sm">
             <div>
                 <span class="block text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Sport</span>
                 <span class="text-xl font-black text-slate-900">{item['sport_name']}</span>
             </div>
             <div class="text-right">
                 <span class="block text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Athletes</span>
-                <span class="inline-block px-3 py-1 bg-blue-600 text-white rounded-lg font-bold">
+                <span class="inline-block px-3 py-1 bg-blue-600 text-white rounded-full font-bold">
                     {item['athlete_count']}
                 </span>
             </div>
@@ -137,7 +137,7 @@ def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None,
                 <h2 class="text-xl font-bold text-blue-900 mb-4 flex items-center">
                     <span class="mr-2">✨</span> Regional Narrative
                 </h2>
-                <p id="narrative-text" class="text-blue-900 leading-relaxed italic opacity-80">
+                <p id="narrative-text" class="text-blue-900 leading-relaxed opacity-80">
                     {f'"{narrative}"' if narrative else "Gathering community insights and generating regional narrative..."}
                 </p>
             </div>

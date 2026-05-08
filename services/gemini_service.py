@@ -15,15 +15,15 @@ class GeminiNarrativeService:
             "\n\nSTRICT RULES:\n"
             "1. PRIVACY: No individual Names, Images, or Likeness (NIL). Never mention specific names or scoring results.\n"
             "2. AGGREGATION: Only discuss communities and hubs (e.g., 'A significant group of athletes from this region').\n"
-            "3. TERMINOLOGY: Refer to the Games exactly as 'Olympic Games [City] [Year]' or 'Paralympic Winter Games [City] [Year]'.\n"
+            "3. TERMINOLOGY: Use 'Olympic Games [City] [Year]' (e.g., Paris 2024). For the LA28 Games, use 'LA28 Games' or 'LA28 Olympic and Paralympic Games'. For the next Winter Games, use 'Olympic Winter Games Milano Cortina 2026'.\n"
             "4. NO 'PAST': Never use 'former' or 'past' Olympian/Paralympian. They are always Olympians/Paralympians.\n"
             "5. CAUSATION: Use conditional phrasing like 'could help find' or 'suggests a link'. Do not state geography is the cause.\n"
             "6. HUB LOGIC: Focus on why this specific region is a hub for certain sports based on terrain or climate.\n"
-            "7. EMPHASIS: Use HTML <strong> tags for bolding sport names or key geographical features. Ensure sport names are in Title Case, not ALL CAPS."
+            "7. EMPHASIS: Use HTML <strong> tags for bolding sport names or key geographical features. Do NOT use markdown bolding like **text**; only use HTML tags. Ensure sport names are in Title Case, not ALL CAPS."
         )
         
         # Using Gemini 2.5 Pro as specified in project requirements
-        self.model = GenerativeModel("gemini-2.5-flash-lite", system_instruction=system_instruction) # Consider pinning a specific version
+        self.model = GenerativeModel("gemini-2.5-pro", system_instruction=system_instruction) # Consider pinning a specific version
 
     async def generate_hub_narrative(self, region_name: str, stats: List[Dict[str, Any]], climate_data: Dict[str, Any]):
         """
