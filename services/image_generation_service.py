@@ -2,7 +2,7 @@ import logging
 import base64
 from typing import Optional
 from vertexai.preview.vision_models import ImageGenerationModel
-from google.cloud import bigquery # Import bigquery module
+from google.cloud import bigquery
 from services.bigquery_service import BigQueryService
 
 class ImageGenerationService:
@@ -14,7 +14,7 @@ class ImageGenerationService:
         self.project_id = project_id
         self.bigquery = BigQueryService(project_id=project_id)
         # Initialize the Imagen model
-        self.model = ImageGenerationModel.from_pretrained("imagen-3.0-fast-generate-001")
+        self.model = ImageGenerationModel.from_pretrained("imagen-3.0-fast-generate-001") # Consider pinning a specific version
 
     async def get_hub_image(self, hometown_id: str, pretty_name: str, region: str) -> Optional[str]:
         """
@@ -29,13 +29,14 @@ class ImageGenerationService:
                 return cached_image
         except Exception as e:
             logging.error(f"Error fetching cached image for {hometown_id}: {e}")
+            # Log the full traceback for better debugging
             # Continue to generate if cache check fails
 
         # 2. Generate Image if not cached
         logging.info(f"Generating new image for hub: {pretty_name}")
         prompt = (
-            f"A vibrant and modern flat vector clipart illustration of the landscape in {pretty_name}, {region}. "
-            "The scene should feature nationally recognizable landmarks or iconic local structures if available. "
+            f"A vibrant and modern flat vector clipart illustration of the natural landscape in {pretty_name}, {region}. "
+            "The scene should feature nationally recognizable natural landmarks, or falling back to iconic local structures if available. "
             "Clean minimal design, bold colors, inspiring atmosphere. No people, no text."
         )
 
@@ -45,7 +46,7 @@ class ImageGenerationService:
                 prompt=prompt,
                 number_of_images=1,
                 language="en",
-                aspect_ratio="3:2"
+                aspect_ratio="4:3"
             )
 
             if response.images:
@@ -59,6 +60,7 @@ class ImageGenerationService:
 
         except Exception as e:
             logging.error(f"Image generation failed for {pretty_name}: {e}")
+            # Log the full traceback for better debugging
         
         return None
 

@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node modules (if using Node.js for frontend assets)
+node_modules/
+
+# Resources
+scripts/resources/processed/
+scripts/resources/output/
+scripts/resources/pages/
+scripts/resources/*.json
+scripts/resources/*.pdf

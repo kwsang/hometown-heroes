@@ -68,6 +68,9 @@ app.add_middleware(
 # Mount the static images directory so the browser can access the favicon
 app.mount("/img", StaticFiles(directory="img"), name="img")
 
+# Mount the static directory for CSS and other assets
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 
 if not PROJECT_ID:

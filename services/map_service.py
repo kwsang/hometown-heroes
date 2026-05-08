@@ -1,6 +1,6 @@
 from services import frontend_service, hub_drawer_service
 
-def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
+def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) -> str:
     """Renders the interactive Google Maps page with regional hubs and legend."""
     # Prepare hub data for JavaScript
     hubs_js_array = []
@@ -181,7 +181,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str) -> str:
                         m.map = (matchesRegion && matchesCount) ? map : null;
                     }});
                 }}
-                {hub_drawer_service.get_drawer_js()}
+                {hub_drawer_service.get_drawer_js(api_key)}
 
                 initMap();
             </script>
