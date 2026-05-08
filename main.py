@@ -67,7 +67,7 @@ async def add_security_headers(request: Request, call_next):
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://*.google.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com; "
-        "img-src 'self' data: https://maps.gstatic.com https://*.googleapis.com https://*.google.com; "
+        "img-src 'self' data: https://storage.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.google.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "frame-src 'self' https://*.google.com; "
         "connect-src 'self' https://*.googleapis.com https://*.google.com"

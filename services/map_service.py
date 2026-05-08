@@ -1,5 +1,5 @@
 import json
-from services import frontend_service, hub_drawer_service
+from . import frontend_service, hub_drawer_service
 
 def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) -> str:
     """Renders the interactive Google Maps page with regional hubs and legend."""

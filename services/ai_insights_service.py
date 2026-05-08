@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 import logging
-from services.gemini_service import GeminiNarrativeService
-from services.bigquery_service import BigQueryService
+from .gemini_service import GeminiNarrativeService
+from .bigquery_service import BigQueryService
 
 class AIInsightsService:
     """

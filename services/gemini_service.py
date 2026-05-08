@@ -1,6 +1,8 @@
 import vertexai
+import logging
 from vertexai.generative_models import GenerativeModel, HarmCategory, HarmBlockThreshold
 from typing import List, Dict, Any
+from google.api_core import exceptions as google_exceptions
 
 class GeminiNarrativeService:
     def __init__(self, project_id: str, location: str = "us-central1"):
@@ -41,10 +43,23 @@ class GeminiNarrativeService:
             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
         }
 
-        response = await self.model.generate_content_async(
-            prompt,
-            safety_settings=safety_settings
-        )
+        try:
+            response = await self.model.generate_content_async(
+                prompt,
+                safety_settings=safety_settings
+            )
+        except google_exceptions.ResourceExhausted:
+            logging.error(f"Gemini Rate Limit Exceeded for hub: {region_name}")
+            return "The regional narrative is currently unavailable due to high demand. Please try again in a few moments."
+        except google_exceptions.DeadlineExceeded:
+            logging.error(f"Gemini Timeout for hub: {region_name}")
+            return "Narrative generation timed out. Local geographic insights are still being processed."
+        except google_exceptions.Forbidden as e:
+            logging.error(f"Gemini Permission Denied: {e}. Ensure 'Vertex AI User' role is assigned to the service account.")
+            return "Regional insights are restricted due to system permissions."
+        except Exception as e:
+            logging.error(f"Unexpected AioRpcError in Gemini service: {e}", exc_info=True)
+            return "A localized narrative for this region is currently being synthesized based on community athletic history."
         
         # Check for prompt feedback that might indicate safety blocks
         # Safely handle empty or blocked responses

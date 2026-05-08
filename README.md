@@ -15,6 +15,7 @@ The project is powered by a robust ETL pipeline and a multi-tiered AI architectu
 ### 🧠 What We Learned
 *   **Multimodal AI is a Game Changer:** Using Gemini to "read" PDFs directly saved dozens of hours of manual data entry and regular expression tuning.
 *   **Structured Output Engineering:** We learned how to strictly enforce JSON schemas and boundary validation (first/last athlete checks) to ensure 100% data integrity when working with LLMs.
+*   **BigQuery vs. Cloud Storage for Assets:** Storing Base64-encoded images in BigQuery created significant latency during frontend rendering. We learned to treat BigQuery as an analytical metadata store and move binary assets to **Google Cloud Storage (GCS)**, enabling direct URL serving and native browser caching for a snappier user experience.
 *   **Compliance-First Design:** Navigating the strict NIL (Name, Image, and Likeness) and branding restrictions taught us how to build meaningful data products while respecting athlete privacy and intellectual property.
 
 ### 🚧 Challenges Faced
@@ -49,6 +50,7 @@ The project is powered by a robust ETL pipeline and a multi-tiered AI architectu
 To successfully deploy and manage this project, ensure your Google Cloud user or service account has the following roles and permissions:
 *   **Deployment:** `Cloud Run Admin`, `Cloud Build Editor`, and `Service Account User`.
 *   **Data & AI:** `BigQuery Data Editor`, `BigQuery User`, and `Vertex AI User`.
+*   **Security:** `Secret Manager Secret Accessor` (if using Secret Manager for API keys).
 *   **Observability:** To view and debug application logs, you must have the `logging.logEntries.list` permission (typically included in **Project Viewer** or **Logs Viewer** roles).
 
 ### 🛠️ Managing the Service Account

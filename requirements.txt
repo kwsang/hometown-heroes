@@ -3,9 +3,11 @@ uvicorn
 gunicorn
 google-cloud-bigquery
 google-cloud-aiplatform
+google-cloud-storage
 google-auth
 pandas
 db-dtypes
 jinja2
 pypdf
 python-multipart
+Pillow
