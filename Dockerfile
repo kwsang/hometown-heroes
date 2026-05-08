@@ -14,9 +14,9 @@ COPY . ./
 # Ensure you have a requirements.txt file in your project root.
 RUN pip install --no-cache-dir -r requirements.txt
 
-# The entry point for FastAPI is assumed to be main.py. 
-# Adjust 'main:app' if your entry point file or FastAPI instance name differs.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Use the PORT environment variable if it exists, otherwise default to 8080.
+# This is a requirement for deploying to Google Cloud Run.
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
 
 # Note for React Integration:
 # If serving a React frontend via FastAPI StaticFiles, ensure your 'build' 
