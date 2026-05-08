@@ -189,6 +189,9 @@ class HubService:
 
         # 6. Final Loads
         logging.info("Performing final BigQuery loads...")
+        # Existing tables must be deleted to apply new clustering specifications
+        self.client.delete_table(f"{self.project_id}.{dataset_id}.hometown_hubs", not_found_ok=True)
+
         self.client.load_table_from_dataframe(
             df_hubs, 
             f"{self.project_id}.{dataset_id}.hometown_hubs",
@@ -217,6 +220,9 @@ class HubService:
         df_serving = df_serving.rename(columns={'hometown': 'pretty_city_name', 'total_athlete_count': 'athlete_count'})
         self.firestore.sync_from_dataframe(df_serving)
         logging.info("Firestore synchronization complete.")
+
+        # Delete summary table to apply new clustering specification
+        self.client.delete_table(f"{self.project_id}.{dataset_id}.regional_hubs_summary", not_found_ok=True)
 
         self.client.load_table_from_dataframe(
             df_summary, 

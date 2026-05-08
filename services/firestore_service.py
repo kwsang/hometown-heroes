@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import List, Dict, Any, Optional
 from google.cloud import firestore
 
@@ -45,10 +46,20 @@ class FirestoreService:
         count = 0
         for _, row in df.iterrows():
             doc_id = row['hometown_id']
+            if not doc_id:
+                continue
+                
             doc_ref = self.db.collection(self.collection_name).document(doc_id)
-            # Convert row to dict, handling NaNs for Firestore compatibility
-            data = row.to_dict()
-            clean_data = {k: v for k, v in data.items() if v is not None and str(v) != 'nan'}
+            
+            # Clean and convert data to native Python types for Firestore compatibility
+            clean_data = {}
+            for k, v in row.to_dict().items():
+                # Skip nulls and NaNs
+                if v is None or (isinstance(v, float) and math.isnan(v)):
+                    continue
+                # Convert numpy types to native Python types
+                clean_data[k] = getattr(v, 'tolist', lambda: v)() if hasattr(v, 'dtype') else v
+
             batch.set(doc_ref, clean_data, merge=True)
             count += 1
             if count >= 400: # Firestore batch limit is 500

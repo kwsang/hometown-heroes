@@ -2,5 +2,6 @@ fastapi
 uvicorn
 google-cloud-bigquery
 google-cloud-aiplatform
+google-cloud-firestore
 pydantic
 requests
