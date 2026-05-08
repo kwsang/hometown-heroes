@@ -34,9 +34,9 @@ class ImageGenerationService:
         # 2. Generate Image if not cached
         logging.info(f"Generating new image for hub: {pretty_name}")
         prompt = (
-            f"A professional, cinematic, and inspiring landscape photograph of {pretty_name} in the {region} region. "
-            "The image should evoke a sense of American athletic excellence and community pride for Team USA. "
-            "Good enough quality, architectural and natural beauty, no people, no text."
+            f"A vibrant and modern flat vector clipart illustration of the landscape in {pretty_name}, {region}. "
+            "The scene should feature nationally recognizable landmarks or iconic local structures if available. "
+            "Clean minimal design, bold colors, inspiring atmosphere. No people, no text."
         )
 
         try:
@@ -45,7 +45,7 @@ class ImageGenerationService:
                 prompt=prompt,
                 number_of_images=1,
                 language="en",
-                aspect_ratio="1:1"
+                aspect_ratio="3:2"
             )
 
             if response.images:

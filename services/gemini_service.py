@@ -16,7 +16,8 @@ class GeminiNarrativeService:
             "3. TERMINOLOGY: Refer to the Games exactly as 'Olympic Games [City] [Year]' or 'Paralympic Winter Games [City] [Year]'.\n"
             "4. NO 'PAST': Never use 'former' or 'past' Olympian/Paralympian. They are always Olympians/Paralympians.\n"
             "5. CAUSATION: Use conditional phrasing like 'could help find' or 'suggests a link'. Do not state geography is the cause.\n"
-            "6. HUB LOGIC: Focus on why this specific region is a hub for certain sports based on terrain or climate."
+            "6. HUB LOGIC: Focus on why this specific region is a hub for certain sports based on terrain or climate.\n"
+            "7. EMPHASIS: Use HTML <strong> tags for bolding sport names or key geographical features."
         )
         
         # Using Gemini 2.5 Pro as specified in project requirements

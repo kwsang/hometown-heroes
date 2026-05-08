@@ -1,4 +1,5 @@
 import os
+import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
@@ -7,10 +8,13 @@ from services.bigquery_service import BigQueryService
 from services.frontend_service import render_landing_page, render_hub_detail_page
 from services.map_service import render_hubs_page
 from services.ai_insights_service import AIInsightsService
+from services.image_generation_service import ImageGenerationService
 from dotenv import load_dotenv
 
 # Ensure environment variables are loaded before initializing services
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Hometown Heroes API")
 
@@ -25,6 +29,7 @@ if not PROJECT_ID:
 gemini_engine = GeminiNarrativeService(project_id=PROJECT_ID)
 data_engine = BigQueryService(project_id=PROJECT_ID)
 insights_engine = AIInsightsService(project_id=PROJECT_ID)
+image_engine = ImageGenerationService(project_id=PROJECT_ID)
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -81,6 +86,22 @@ async def get_hub_narrative(hometown_id: str):
             "narrative": narrative
         }
     except Exception as e:
+        logging.error(f"Narrative endpoint failure: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/hubs/{hometown_id}/image")
+async def get_hub_image(hometown_id: str, pretty_name: str, region: str):
+    try:
+        base64_image = await image_engine.get_hub_image(hometown_id, pretty_name, region)
+        if not base64_image:
+             raise HTTPException(status_code=404, detail="Image generation failed")
+        return {
+            "image_data": base64_image
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Image endpoint failure: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/hubs/{hometown_id}")

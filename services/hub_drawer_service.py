@@ -50,7 +50,7 @@ def get_drawer_js() -> str:
                     <div class="flex-grow">
                         <h2 class="text-3xl font-black text-slate-900">${prettyName}</h2>
                     </div>
-                    <div id="hub-image-container" class="w-24 h-24 flex-shrink-0 bg-slate-100 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-100">
+                    <div id="hub-image-container" class="w-72 h-48 flex-shrink-0 bg-slate-100 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-100">
                         <div class="animate-pulse w-full h-full bg-slate-200"></div>
                     </div>
                 </div>
@@ -110,7 +110,7 @@ def get_drawer_js() -> str:
                         const narrativeEl = document.getElementById('narrative-text');
                         if (narrativeEl) {
                             narrativeEl.classList.remove('animate-pulse');
-                            narrativeEl.innerText = `"${data.narrative}"`;
+                            narrativeEl.innerHTML = `"${data.narrative}"`; // Use innerHTML to render bold text
                         }
                     })
                     .catch(err => {
