@@ -91,7 +91,7 @@ app.add_middleware(
 )
 
 # Ensure required directories exist to avoid FastAPI startup failure
-for doc_dir in ["img", "static"]:
+for doc_dir in ["img", "static", os.path.join("img", "favicon")]:
     if not os.path.exists(doc_dir):
         os.makedirs(doc_dir)
 
@@ -106,7 +106,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # --- Route to solve 404 favicon.ico ---
 @app.get('/favicon.ico', include_in_schema=False)
 async def favicon():
-    return FileResponse(os.path.join("img", "favicon.ico"))
+    favicon_path = os.path.join("img", "favicon.ico")
+    if not os.path.exists(favicon_path):
+        return JSONResponse(status_code=404, content={"detail": "Favicon not found"})
+    return FileResponse(favicon_path)
 
 # Attempt to get the Project ID from the environment, falling back to 
 # Google's auth discovery (which works automatically on Cloud Run)

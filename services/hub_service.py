@@ -105,6 +105,19 @@ class HubService:
             logging.info("No athlete data to process.")
             return
 
+        # --- NEW: Preserve existing narrative and hub_image from regional_hubs_summary ---
+        df_existing_assets = pd.DataFrame()
+        try:
+            existing_assets_query = f"""
+                SELECT hometown_id, narrative, hub_image
+                FROM `{self.project_id}.{dataset_id}.regional_hubs_summary`
+            """
+            df_existing_assets = self.client.query(existing_assets_query).to_dataframe()
+            logging.info(f"Loaded {len(df_existing_assets)} existing assets from regional_hubs_summary.")
+        except Exception as e:
+            logging.warning(f"Could not load existing assets from regional_hubs_summary (might not exist yet): {e}")
+        # --- END NEW ---
+
         # Initialize columns
         for col in ['lat', 'lng', 'regional_elevation', 'hometown_id', 'region', 'narrative', 'narrative_timestamp', 'hub_image']:
             df_raw[col] = None
@@ -186,6 +199,22 @@ class HubService:
             hub_image=('hub_image', 'first')
         ).reset_index()
         df_summary['load_timestamp'] = pd.Timestamp.now(tz='UTC')
+
+        # --- NEW: Merge existing assets back into df_summary ---
+        if not df_existing_assets.empty:
+            # Use a left merge to keep all new df_summary rows
+            # and update narrative/hub_image only if they are currently null in df_summary
+            df_summary = df_summary.merge(
+                df_existing_assets,
+                on='hometown_id',
+                how='left',
+                suffixes=('', '_existing')
+            )
+            df_summary['narrative'] = df_summary['narrative'].fillna(df_summary['narrative_existing'])
+            df_summary['hub_image'] = df_summary['hub_image'].fillna(df_summary['hub_image_existing'])
+            df_summary = df_summary.drop(columns=['narrative_existing', 'hub_image_existing'], errors='ignore')
+            logging.info("Merged existing narratives and images into df_summary.")
+        # --- END NEW ---
 
         # 6. Final Loads
         logging.info("Performing final BigQuery loads...")

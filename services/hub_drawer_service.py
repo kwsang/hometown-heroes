@@ -103,7 +103,9 @@ def get_drawer_js(api_key: str) -> str:
                     .then(data => {{
                         const imgContainer = document.getElementById('hub-image-container');
                         if (data.image_data) {{
-                            imgContainer.innerHTML = `<img src="data:image/png;base64,${{data.image_data}}" class="w-full h-full object-cover">`;
+                             // Check if image_data is a GCS URL or a Base64 string
+                            const src = data.image_data.startsWith('http') ? data.image_data : `data:image/png;base64,${{data.image_data}}`;
+                            imgContainer.innerHTML = `<img src="${{src}}" class="w-full h-full object-cover">`;
                         }}
                     }})
                     .catch(err => {{
