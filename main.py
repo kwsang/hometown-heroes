@@ -230,11 +230,11 @@ async def get_hub_image(
     region: str
 ):
     try:
-        base64_image = await image_engine.get_hub_image(hometown_id, pretty_name, region)
-        if not base64_image:
-             raise HTTPException(status_code=404, detail="Image generation failed")
+        image_url = await image_engine.get_hub_image(hometown_id, pretty_name, region)
+        if not image_url:
+             raise HTTPException(status_code=404, detail=f"Image for {hometown_id} could not be generated or found.")
         return {
-            "image_data": base64_image
+            "image_data": image_url
         }
     except HTTPException:
         raise

@@ -32,7 +32,12 @@ graph TD
     L --> N{process_geocoding.py};
     N --> O[BigQuery: hometown_hubs table];
     N --> P[BigQuery: regional_hubs_summary table];
-    W[Web App] -- "Imagen & Gemini Cache" --> P; # Web App populates cache in P
+    N --> FS[(Firestore: hubs collection)];
+    W[Web App] -- "High-Speed Serving" --> FS;
+    W -- "Narrative Cache" --> P;
+    W -- "Asset Fetch" --> GCS[(Cloud Storage: .webp images)];
+    MIG{migrate_images_to_gcs.py} -- "Optimize & Sync" --> GCS;
+    MIG --> P;
 ```
 
 ## ETL Steps and Script Details

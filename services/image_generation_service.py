@@ -1,6 +1,7 @@
 import logging
 import os
 import io
+import asyncio
 from typing import Optional
 from vertexai.preview.vision_models import ImageGenerationModel
 from google.cloud import bigquery
@@ -50,8 +51,9 @@ class ImageGenerationService:
         )
 
         try:
-            # Generate the image
-            response = self.model.generate_images(
+            # Run the synchronous Imagen call in a separate thread to avoid blocking the event loop
+            response = await asyncio.to_thread(
+                self.model.generate_images,
                 prompt=prompt,
                 number_of_images=1,
                 language="en",
