@@ -16,6 +16,7 @@ class BigQueryService:
                 hometown_id as id,
                 hometown_id as city, 
                 hometown as pretty_city_name,
+                sports,
                 total_athlete_count,
                 lat, 
                 lng,

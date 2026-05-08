@@ -1,16 +1,22 @@
+import json
 from services import frontend_service, hub_drawer_service
 
 def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) -> str:
     """Renders the interactive Google Maps page with regional hubs and legend."""
-    # Prepare hub data for JavaScript
+    # Prepare hub data for JavaScript and extract unique sports
     hubs_js_array = []
+    all_sports = set()
     for hub in hubs:
+        hub_sports = [s['sport'] for s in hub.get('sports', [])]
+        for s in hub_sports: all_sports.add(s)
+
         hubs_js_array.append(f"""
             {{
                 id: '{hub['id']}',
                 city: '{hub['city']}',
                 pretty_city_name: '{hub['pretty_city_name']}',
                 athlete_count: {hub['total_athlete_count']},
+                sports: {json.dumps(hub_sports)},
                 lat: {hub['lat']},
                 lng: {hub['lng']},
                 region: '{hub['region']}',
@@ -33,8 +39,8 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
 
     legend_items = "".join([
         f"""
-        <button 
-            onclick="toggleRegion('{name}')" 
+        <button
+            onclick="toggleRegion('{name}')"
             data-region-btn="{name}"
             class="flex items-center space-x-2 px-3 py-2 rounded-xl transition-all duration-200 border border-transparent hover:bg-white hover:shadow-sm"
         >
@@ -43,23 +49,40 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
         </button>
         """ for name, color in region_colors.items()
     ])
+
+    sport_options_html = "".join([
+        f'<option value="{s}" class="text-slate-700 font-sans">{s}</option>' for s in sorted(list(all_sports))
+    ])
+
     legend_html = f"""
-    <div class="flex flex-wrap items-center justify-between gap-6 mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-        <div class="flex flex-wrap gap-x-4 gap-y-2">
-            {legend_items}
+    <div class="flex flex-col gap-4 mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+        <div class="flex flex-wrap items-center justify-between gap-6">
+            <div class="flex flex-wrap gap-x-4 gap-y-2">
+                {legend_items}
+            </div>
+            <div class="flex items-center gap-4 ml-auto">
+                <div class="relative">
+                    <select onchange="toggleSport(this.value); this.value='';" 
+                            class="bg-white border border-slate-200 pl-4 pr-8 py-2 rounded-xl text-xs font-bold text-slate-500 uppercase tracking-widest hover:shadow-sm transition cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="" disabled selected>+ Filter by Sport</option>
+                        {sport_options_html}
+                    </select>
+                </div>
+                <div class="flex flex-col space-y-2 min-w-[200px] border-l border-slate-200 pl-6">
+                    <label for="athlete-range" class="text-xs font-bold text-slate-500 uppercase tracking-widest flex justify-between">
+                        <span>Min Athletes</span>
+                        <span id="range-value" class="text-blue-600 font-black">4</span>
+                    </label>
+                    <input type="range" id="athlete-range" min="1" max="100" value="4"
+                           class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                           oninput="updateAthleteFilter(this.value)">
+                </div>
+            </div>
         </div>
-        <div class="flex flex-col space-y-2 min-w-[200px] border-l border-slate-200 pl-6 ml-auto">
-            <label for="athlete-range" class="text-xs font-bold text-slate-500 uppercase tracking-widest flex justify-between">
-                <span>Min Athletes</span>
-                <span id="range-value" class="text-blue-600 font-black">4</span>
-            </label>
-            <input type="range" id="athlete-range" min="1" max="100" value="4" 
-                   class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                   oninput="updateAthleteFilter(this.value)">
-        </div>
+        <div id="selected-sports-chips" class="flex flex-wrap gap-2 empty:hidden border-t border-slate-200/50 pt-3"></div>
     </div>
     """
-
+    
     return f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -84,6 +107,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                 let map;
                 const markers = [];
                 const selectedRegions = new Set();
+                const selectedSports = new Set();
                 let minAthletes = 4;
                 const hubs = [
                     {hubs_js}
@@ -129,6 +153,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                         
                         marker.region = hub.region;
                         marker.athleteCount = hub.athlete_count;
+                        marker.sports = hub.sports;
                         markers.push(marker);
 
                         marker.addListener("gmp-click", () => {{
@@ -154,6 +179,16 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                     updateFilters();
                 }};
 
+                window.toggleSport = (sport) => {{
+                    if (!sport) return;
+                    if (selectedSports.has(sport)) {{
+                        selectedSports.delete(sport);
+                    }} else {{
+                        selectedSports.add(sport);
+                    }}
+                    updateFilters();
+                }};
+
                 window.updateAthleteFilter = (val) => {{
                     minAthletes = parseInt(val);
                     document.getElementById('range-value').innerText = val;
@@ -163,6 +198,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                 function updateFilters() {{
                     const btns = document.querySelectorAll('[data-region-btn]');
                     const isFilteringRegions = selectedRegions.size > 0;
+                    const isFilteringSports = selectedSports.size > 0;
 
                     btns.forEach(btn => {{
                         const region = btn.getAttribute('data-region-btn');
@@ -178,8 +214,18 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                     markers.forEach(m => {{
                         const matchesRegion = !isFilteringRegions || selectedRegions.has(m.region);
                         const matchesCount = m.athleteCount >= minAthletes;
-                        m.map = (matchesRegion && matchesCount) ? map : null;
+                        const matchesSport = !isFilteringSports || m.sports.some(s => selectedSports.has(s));
+                        m.map = (matchesRegion && matchesCount && matchesSport) ? map : null;
                     }});
+
+                    // Update Chips
+                    const chipContainer = document.getElementById('selected-sports-chips');
+                    chipContainer.innerHTML = Array.from(selectedSports).map(s => `
+                        <div class="flex items-center gap-1.5 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold uppercase tracking-widest border border-blue-200">
+                            <span>${{s}}</span>
+                            <button onclick="toggleSport('${{s}}')" class="hover:text-blue-900 ml-1 leading-none">✕</button>
+                        </div>
+                    `).join('');
                 }}
                 {hub_drawer_service.get_drawer_js(api_key)}
             </script>
