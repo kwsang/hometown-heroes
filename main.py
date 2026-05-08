@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Depends, Request, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 import google.auth
 from services.gemini_service import GeminiNarrativeService
 from services.bigquery_service import BigQueryService
@@ -15,10 +15,13 @@ from services.frontend_service import render_landing_page, render_hub_detail_pag
 from services.map_service import render_hubs_page
 from services.ai_insights_service import AIInsightsService
 from services.image_generation_service import ImageGenerationService
-from dotenv import load_dotenv
 
-# Ensure environment variables are loaded before initializing services
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # This is expected in Cloud Run environments where dotenv isn't installed
+    logging.info("python-dotenv not found; skipping load_dotenv.")
 
 # --- Security: API Key Authentication ---
 # In a real-world scenario, you'd use a more robust auth mechanism (e.g., OAuth2, JWT)
@@ -77,6 +80,11 @@ app.mount("/img", StaticFiles(directory="img"), name="img")
 # Mount the static directory for CSS and other assets
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# --- Route to solve 404 favicon.ico ---
+@app.get('/favicon.ico', include_in_schema=False)
+async def favicon():
+    return FileResponse(os.path.join("img", "favicon.ico"))
+
 # Attempt to get the Project ID from the environment, falling back to 
 # Google's auth discovery (which works automatically on Cloud Run)
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID")
@@ -105,10 +113,14 @@ def health_check():
 
 @app.get("/hubs", response_class=HTMLResponse)
 async def hubs_page():
-    # Dynamically fetch hub locations from BigQuery
-    hubs = data_engine.get_all_hubs()
-    google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY",)
-    return render_hubs_page(hubs, google_maps_api_key, API_KEY)
+    try:
+        # Dynamically fetch hub locations from BigQuery
+        hubs = data_engine.get_all_hubs()
+        google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+        return render_hubs_page(hubs, google_maps_api_key, API_KEY)
+    except Exception as e:
+        logging.error(f"Error loading hubs page: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to load regional hubs data.")
 
 @app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
 async def silence_chrome_devtools():

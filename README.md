@@ -51,5 +51,16 @@ To successfully deploy and manage this project, ensure your Google Cloud user or
 *   **Data & AI:** `BigQuery Data Editor`, `BigQuery User`, and `Vertex AI User`.
 *   **Observability:** To view and debug application logs, you must have the `logging.logEntries.list` permission (typically included in **Project Viewer** or **Logs Viewer** roles).
 
+### 🛠️ Managing the Service Account
+To find the exact email of the service account your app is using:
+```bash
+gcloud run services describe hometown-heroes --format="value(spec.template.spec.serviceAccountName)"
+```
+
+To grant permissions (e.g., BigQuery access) to that account:
+```bash
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:YOUR_SERVICE_ACCOUNT_EMAIL" --role="roles/bigquery.dataViewer"
+```
+
 ---
 *This project was developed for the Team USA Hackathon, adhering to all athlete NIL protections and official terminology requirements.*
