@@ -186,7 +186,7 @@ async def hubs_page():
         return render_hubs_page(hubs, google_maps_api_key, PROJECT_ID, API_KEY)
     except google.api_core.exceptions.NotFound:
         logging.error("BigQuery Table 'regional_hubs_summary' not found. Have you run the processing scripts?")
-        raise HTTPException(status_code=503, detail="Database table not initialized. Please run the data ingestion pipeline.")
+        raise HTTPException(status_code=503, detail="The regional data is still being processed. Please try again in a few minutes.")
     except google.api_core.exceptions.Forbidden as e:
         logging.error(f"Permission denied accessing BigQuery: {e}")
         raise HTTPException(status_code=403, detail="The service account does not have permission to read from BigQuery.")

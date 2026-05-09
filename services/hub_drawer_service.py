@@ -24,8 +24,8 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
         let currentlyHighlightedHubId = null;
         let lastFeaturedSport = null;
         let activeHubId = null;
-        const imageCache = {}; // Client-side cache for images
-        const narrativeCache = {}; // Client-side cache for session persistence
+        const imageCache = {{}}; // Client-side cache for images
+        const narrativeCache = {{}}; // Client-side cache for session persistence
 
         function closeDrawer() {{
             const drawer = document.getElementById('drawer');
@@ -231,11 +231,11 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
                 // Check if image is already available in the pre-loaded data or cache
                 const preLoadedImage = hub.hub_image || imageCache[hubId];
                 
-                if (preLoadedImage) {
+                if (preLoadedImage) {{
                     const imgContainer = document.getElementById('hub-image-container');
                     const src = (preLoadedImage.startsWith('http')) ? preLoadedImage : `data:image/png;base64,${{preLoadedImage}}`;
                     imgContainer.innerHTML = `<img src="${{src}}" class="w-full h-full object-cover">`;
-                } else {
+                }} else {{
                     // Fetch Hub Image lazily only if missing
                     fetch(`/api/v1/hubs/${{encodeURIComponent(hubId)}}/image?pretty_name=${{encodeURIComponent(prettyName)}}&region=${{encodeURIComponent(region)}}`, {{
                         headers: {{ 'Authorization': `Bearer {api_key}` }}
@@ -257,11 +257,11 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
                             }}
                         }})
                         .catch(err => {{
-                            if (activeHubId === hubId) {
+                            if (activeHubId === hubId) {{
                                 document.getElementById('hub-image-container').innerHTML = '<span class="text-slate-300">🏔️</span>';
-                            }
+                            }}
                         }});
-                }
+                }}
 
                 // Check JS cache first
                 if (narrativeCache[hubId]) {{

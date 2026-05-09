@@ -75,10 +75,13 @@ class ImageGenerationService:
                 # 3. Upload to GCS
                 gcs_url = self._upload_to_gcs(hometown_id, image_bytes)
 
-                # 4. Persist URL to cache (BigQuery) and Serving Layer (Firestore)
-                logging.info(f"Caching generated image for {pretty_name} ({hometown_id}).")
-                self._cache_image_url(hometown_id, gcs_url)
+                # 4. Update Firestore Serving Layer immediately (Fast)
                 self.firestore.update_field(hometown_id, "hub_image", gcs_url)
+                
+                # 5. Background the slow BigQuery DML update
+                logging.info(f"Backgrounding BigQuery cache update for {hometown_id}.")
+                asyncio.create_task(self._async_cache_image_url(hometown_id, gcs_url))
+                
                 return gcs_url
 
         except Exception as e:
@@ -101,14 +104,18 @@ class ImageGenerationService:
                 img = img.resize((target_width, h_size), Image.Resampling.LANCZOS)
             
             output = io.BytesIO()
-            img.save(output, format="WEBP", quality=80, method=6)
+            # Method 4 is a better balance of speed vs compression than method 6
+            img.save(output, format="WEBP", quality=80, method=4)
             processed_bytes = output.getvalue()
         
         blob.upload_from_string(processed_bytes, content_type="image/webp")
         return f"https://storage.googleapis.com/{self.bucket_name}/hubs/{hometown_id}.webp"
 
-    def _cache_image_url(self, hometown_id: str, image_url: str):
-        """Internal helper to save the GCS URL to BigQuery."""
+    async def _async_cache_image_url(self, hometown_id: str, image_url: str):
+        """
+        Asynchronous wrapper to save the GCS URL to BigQuery 
+        without blocking the main request thread.
+        """
         query = f"""
             UPDATE `{self.project_id}.team_usa_data.regional_hubs_summary`
             SET hub_image = @image_url
@@ -120,5 +127,9 @@ class ImageGenerationService:
                 bigquery.ScalarQueryParameter("hometown_id", "STRING", hometown_id)
             ]
         )
-        self.bigquery.client.query(query, job_config=job_config).result()
-        logging.info(f"Image URL for {hometown_id} cached in BigQuery.")
+        try:
+            # Run the synchronous query in a thread to keep the event loop free
+            await asyncio.to_thread(self.bigquery.client.query(query, job_config=job_config).result)
+            logging.info(f"Image URL for {hometown_id} cached in BigQuery.")
+        except Exception as e:
+            logging.error(f"Background BigQuery update failed for {hometown_id}: {e}")
