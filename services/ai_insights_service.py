@@ -42,12 +42,12 @@ class AIInsightsService:
         # 3. Generate if not cached anywhere
         narrative = await self.gemini.generate_hub_narrative(hometown_id, stats, climate_mock)
         
-        self._memory_cache[hometown_id] = narrative
-
         # 4. Persist to cache (BigQuery) and Serving Layer (Firestore)
         try:
+            logging.info(f"Storing generated narrative for {hometown_id} to BigQuery and Firestore...")
             self.bigquery.update_hub_narrative(hometown_id, narrative)
             self.firestore.update_field(hometown_id, "narrative", narrative)
+            self._memory_cache[hometown_id] = narrative
         except Exception as e:
             logging.error(f"Cache write failed for {hometown_id}: {e}")
         

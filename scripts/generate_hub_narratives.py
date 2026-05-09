@@ -78,22 +78,26 @@ async def generate_hub_narratives():
         return
 
     # 1. Identify hubs missing narratives
-    hubs_to_process = [h for h in hubs if not h.get('narrative')]
+    hubs_to_process = [h for h in hubs if not h.get('narrative') or h.get('narrative') == ""]
     
+    # 2. Identify existing narratives that need to be synced to the Firestore serving layer
+    hubs_to_sync = [h for h in hubs if h.get('narrative')]
+
     if not hubs_to_process:
-        logging.info("All hubs already have narratives.")
-        return
+        logging.info("All hubs already have narratives in BigQuery.")
+    else:
+        logging.info(f"Processing {len(hubs_to_process)} hubs for AI insight generation...")
 
-    logging.info(f"Processing {len(hubs_to_process)} hubs for AI insight generation...")
+    logging.info(f"Checking Firestore synchronization for {len(hubs_to_sync)} existing narratives...")
 
-    # 2. Parallel processing with a semaphore to manage API throughput
+    # 3. Parallel processing for NEW narratives
     semaphore = asyncio.Semaphore(5) 
     tasks = [_process_single_narrative(hub, insights_service, semaphore) for hub in hubs_to_process]
     
     results = await asyncio.gather(*tasks)
     successful_results = [r for r in results if r]
 
-    # 3. Batch Update BigQuery and Firestore
+    # 4. Batch Update BigQuery and Firestore for new results
     if successful_results:
         logging.info(f"Performing batch update for {len(successful_results)} narratives...")
         
@@ -120,7 +124,13 @@ async def generate_hub_narratives():
         for r in successful_results:
             firestore_service.update_field(r['hid'], "narrative", r['narrative'])
 
-        logging.info("Batch hub narrative generation and synchronization complete.")
+    # 5. Ensure existing BigQuery narratives are present in Firestore
+    for h in hubs_to_sync:
+        # We always update to ensure the serving layer is fresh, 
+        # though we could optimize by checking FS existence first.
+        firestore_service.update_field(h['id'], "narrative", h['narrative'])
+
+    logging.info("Hub narrative generation and Firestore synchronization complete.")
 
 if __name__ == "__main__":
     asyncio.run(generate_hub_narratives())
