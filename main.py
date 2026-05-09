@@ -171,12 +171,12 @@ async def health_check():
 @app.get("/hubs", response_class=HTMLResponse)
 async def hubs_page():
     try:
-        # Dynamically fetch hub locations from BigQuery
-        hubs = data_engine.get_all_hubs()
+        # Fetch hub locations from high-performance Firestore serving layer
+        hubs = serving_engine.get_all_hubs()
         
         if not hubs:
-            logging.warning("No hubs found in BigQuery. Ensure ETL processing has run.")
-            # Optional: Return a specific "No Data" page instead of a 500
+            logging.warning("No hubs found in Firestore. Falling back to BigQuery.")
+            hubs = data_engine.get_all_hubs()
         
         google_maps_api_key = (os.getenv("GOOGLE_MAPS_API_KEY") or "").strip("'\"").strip()
 

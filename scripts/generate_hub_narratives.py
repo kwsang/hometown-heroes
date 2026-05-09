@@ -2,6 +2,9 @@ import os
 import asyncio
 import logging
 import sys
+import time
+from google.api_core import exceptions as google_exceptions
+from google.cloud import bigquery
 from dotenv import load_dotenv
 
 # Add the project root directory to the Python path to resolve the 'services' module
@@ -9,11 +12,47 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.bigquery_service import BigQueryService
 from services.ai_insights_service import AIInsightsService
+from services.firestore_service import FirestoreService
 
 # Load environment variables
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
+async def _process_single_narrative(hub, insights_service, semaphore):
+    """Generates a narrative for a hub with retry logic for rate limits."""
+    hometown_id = hub.get('id')
+    pretty_name = hub.get('pretty_city_name')
+    
+    async with semaphore:
+        max_retries = 3
+        retry_wait = 10
+        
+        for attempt in range(max_retries):
+            try:
+                # Fetch stats required for prompt
+                stats = insights_service.bigquery.get_aggregate_hub_stats(hometown_id)
+                elevation = stats[0].get("regional_elevation", "Unknown") if stats else "Unknown"
+                climate_mock = {
+                    "avg_elevation": f"{elevation}m" if elevation != "Unknown" else elevation,
+                    "notable_features": "Local terrain and climate conditions relevant to sport excellence."
+                }
+                
+                # Generate via Gemini (bypassing internal individual DB updates in the service)
+                narrative = await insights_service.gemini.generate_hub_narrative(hometown_id, stats, climate_mock)
+                return {"hid": hometown_id, "narrative": narrative}
+
+            except google_exceptions.ResourceExhausted:
+                if attempt < max_retries - 1:
+                    logging.warning(f"Quota exceeded for {pretty_name}. Retrying in {retry_wait}s...")
+                    await asyncio.sleep(retry_wait)
+                    retry_wait += 10
+                else:
+                    logging.error(f"Max retries reached for {pretty_name}.")
+            except Exception as e:
+                logging.error(f"Error processing {pretty_name}: {e}")
+                break
+    return None
 
 async def generate_hub_narratives():
     """
@@ -29,33 +68,59 @@ async def generate_hub_narratives():
     # Initialize services
     bq_service = BigQueryService(project_id=project_id)
     insights_service = AIInsightsService(project_id=project_id)
+    firestore_service = FirestoreService(project_id=project_id)
 
     logging.info("Retrieving all regional hubs from BigQuery summary table...")
     try:
-        # Fetches unique hubs from team_usa_data.regional_hubs_summary
         hubs = bq_service.get_all_hubs()
     except Exception as e:
         logging.error(f"Failed to fetch hubs from BigQuery: {e}")
         return
 
-    if not hubs:
-        logging.warning("No hubs found in regional_hubs_summary. Ensure geocoding and ingestion have been processed.")
+    # 1. Identify hubs missing narratives
+    hubs_to_process = [h for h in hubs if not bq_service.get_cached_narrative(h['id'])]
+    
+    if not hubs_to_process:
+        logging.info("All hubs already have narratives.")
         return
 
-    logging.info(f"Processing {len(hubs)} hubs for AI insight generation...")
+    logging.info(f"Processing {len(hubs_to_process)} hubs for AI insight generation...")
 
-    for hub in hubs:
-        hometown_id = hub.get('id')
-        pretty_name = hub.get('pretty_city_name')
+    # 2. Parallel processing with a semaphore to manage API throughput
+    semaphore = asyncio.Semaphore(5) 
+    tasks = [_process_single_narrative(hub, insights_service, semaphore) for hub in hubs_to_process]
+    
+    results = await asyncio.gather(*tasks)
+    successful_results = [r for r in results if r]
 
-        logging.info(f"Checking narrative for: {pretty_name} ({hometown_id})")
-        try:
-            # get_narrative checks cache first; if missing, it generates via Gemini and saves to BigQuery
-            await insights_service.get_narrative(hometown_id)
-        except Exception as e:
-            logging.error(f"Error processing narrative for {pretty_name}: {e}")
+    # 3. Batch Update BigQuery and Firestore
+    if successful_results:
+        logging.info(f"Performing batch update for {len(successful_results)} narratives...")
+        
+        merge_query = f"""
+            MERGE `{project_id}.team_usa_data.regional_hubs_summary` T
+            USING UNNEST(@updates) S
+            ON T.hometown_id = S.hid
+            WHEN MATCHED THEN
+              UPDATE SET narrative = S.narrative, narrative_timestamp = CURRENT_TIMESTAMP()
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ArrayQueryParameter("updates", "RECORD", [
+                    bigquery.StructQueryParameter("row",
+                        bigquery.ScalarQueryParameter("hid", "STRING", r["hid"]),
+                        bigquery.ScalarQueryParameter("narrative", "STRING", r["narrative"])
+                    ) for r in successful_results
+                ])
+            ]
+        )
+        bq_service.client.query(merge_query, job_config=job_config).result()
 
-    logging.info("Batch hub narrative generation and caching complete.")
+        # Update Firestore Serving Layer
+        for r in successful_results:
+            firestore_service.update_field(r['hid'], "narrative", r['narrative'])
+
+        logging.info("Batch hub narrative generation and synchronization complete.")
 
 if __name__ == "__main__":
     asyncio.run(generate_hub_narratives())

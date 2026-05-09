@@ -68,11 +68,11 @@ export API_KEY="your-app-secret-key"
 ```
 
 #### 3. Data Pipeline Execution (The "Heal" Sequence)
-Firestore must be populated for the map to function. This multi-stage ETL process transforms raw PDFs into a high-performance serving layer. Run these scripts in the specified order:
+The serving layer must be populated for the map to function. This multi-stage ETL process transforms raw PDFs into a high-performance system. Run these scripts in order:
 
 1.  **Generate Sport Map:** `python scripts/generate_sport_map.py`
     *   **Purpose:** Initial extraction phase. Analyzes source PDFs to identify page ranges per sport and extract athlete boundaries for validation.
-    *   **Gemini Calls:** One call to `gemini-2.5-flash` with the entire PDF as input.
+    *   **Gemini Calls:** One call to `gemini-2.5-flash` per PDF file in `resources/`.
     *   **Output:** `resources/sport_map.json`
 
 2.  **Split PDFs into Sport Segments:** `python scripts/split_pdfs.py`
@@ -96,7 +96,7 @@ Firestore must be populated for the map to function. This multi-stage ETL proces
     *   **Output:** BigQuery Table: `team_usa_data.athletes`
 
 6.  **Process Geocoding and Create Hubs:** `python scripts/process_geocoding.py`
-    *   **Purpose:** Uses Google Maps APIs to add coordinates and elevation to athletes. Aggregates data into hubs and synchronizes to Cloud Firestore.
+    *   **Purpose:** Uses Google Maps APIs to add coordinates and elevation. Aggregates data into hubs and synchronizes to the Firestore serving layer.
     *   **Gemini Calls:** None.
     *   **Output:** BigQuery `regional_hubs_summary` and Firestore `hubs` collection.
 
@@ -106,13 +106,14 @@ Firestore must be populated for the map to function. This multi-stage ETL proces
     *   **Output:** BigQuery Table: `team_usa_data.sport_summary`
 
 8.  **Generate AI Assets (Images & Narratives):**
-    *   `python scripts/generate_sport_images.py`: Generates sport clipart via Imagen 3.0.
-    *   `python scripts/generate_hub_narratives.py`: Generates compliant narratives via Gemini 2.5 Pro.
-    *   **Output:** GCS Bucket (`-hub-images`), BigQuery, and Firestore updates.
+    *   `python scripts/generate_sport_images.py`: Generates sport clipart via Imagen 3.0 with sequential retry logic.
+    *   `python scripts/generate_hub_images.py`: Generates hub landscapes with linear backoff.
+    *   `python scripts/generate_hub_narratives.py`: Generates compliant regional narratives via Gemini 2.5 Pro.
+    *   **Output:** GCS Bucket (`-hub-images`), BigQuery (cache), and Firestore (serving).
 
 9.  **Final Optimization & Data Integrity Check:** `python scripts/migrate_images_to_gcs.py`
-    *   **Purpose:** Self-healing script that ensures all hub images are optimized WebP files stored in GCS and correctly linked in BigQuery.
-    *   **Output:** Optimized assets in GCS.
+    *   **Purpose:** Ensures all hub images are optimized WebP files stored in GCS and correctly linked. Acts as a self-healing mechanism.
+    *   **Output:** Optimized assets in GCS and verified pointers in BigQuery.
 
 10. **Narrative Formatting & Compliance:** `python scripts/fix_narratives_formatting.py`
     *   **Purpose:** Final sweep to enforce terminology (e.g., LA28) and HTML formatting (e.g., `<strong>` tags) across all narratives.
@@ -128,7 +129,7 @@ Navigate to `http://localhost:8000/hubs` to test the interactive map.
 
 #### 5. Verification Checklist
 * [ ] **Health:** `GET /health` returns `{"status": "healthy"}`.
-* [ ] **Latency:** Clicking a map pin loads hub stats from Firestore in <100ms.
+* [ ] **Latency:** Clicking a map pin loads hub stats and the Community Cheer Meter from Firestore in <100ms.
 * [ ] **AI Integration:** WebP sport icons and regional narratives appear correctly in the side drawer.
 
 ### 🛠️ Infrastructure Requirements (IAM)
