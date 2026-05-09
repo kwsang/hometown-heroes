@@ -37,8 +37,12 @@ graph TD
     GHI{generate_hub_images.py} --> P;
     GHI --> FS;
     GHI --> GCS[(Cloud Storage: .webp images)];
-    W[Web App] -- "High-Speed Serving" --> FS;
-    W -- "Asset Fetch" --> GCS;
+    W[Web App] -- "0. UI Persistence" --> SS[Browser sessionStorage];
+    W -- "1. 0ms Network" --> MC[Process In-Memory Cache];
+    W -- "2. Serving Tier" --> FS;
+    W -- "3. Asset Access" --> GCS;
+    W -- "Analytical Registry" --> P;
+    W -- "Aggregate Stats" --> O;
     MIG{migrate_images_to_gcs.py} -- "Parallel Optimize & Sync" --> GCS;
     MIG --> P;
     FIX{fix_narratives_formatting.py} --> P;
