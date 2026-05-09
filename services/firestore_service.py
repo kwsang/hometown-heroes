@@ -45,6 +45,28 @@ class FirestoreService:
         doc_ref = self.db.collection(self.collection_name).document(hometown_id)
         doc_ref.update({field: value})
 
+    def batch_update_fields(self, updates: List[Dict[str, Any]], id_field: str = 'id'):
+        """Updates multiple documents in a single batch (max 500 per commit)."""
+        batch = self.db.batch()
+        count = 0
+        for update in updates:
+            doc_id = update.get(id_field)
+            if not doc_id:
+                continue
+            
+            # Remove the ID from the update data
+            data = {k: v for k, v in update.items() if k != id_field}
+            doc_ref = self.db.collection(self.collection_name).document(doc_id)
+            batch.set(doc_ref, data, merge=True)
+            
+            count += 1
+            if count >= 400: # Firestore batch limit is 500
+                batch.commit()
+                batch = self.db.batch()
+                count = 0
+        if count > 0:
+            batch.commit()
+
     def sync_from_dataframe(self, df):
         """Batch synchronizes a pandas DataFrame to Firestore."""
         batch = self.db.batch()

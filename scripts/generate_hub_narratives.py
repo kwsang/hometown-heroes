@@ -25,13 +25,16 @@ async def _process_single_narrative(hub, insights_service, semaphore):
     pretty_name = hub.get('pretty_city_name')
     
     async with semaphore:
+        logging.info(f"  [AI] Starting narrative generation for: {pretty_name}...")
         max_retries = 3
         retry_wait = 10
         
         for attempt in range(max_retries):
             try:
                 # Fetch stats required for prompt
-                stats = insights_service.bigquery.get_aggregate_hub_stats(hometown_id)
+                stats = await asyncio.to_thread(insights_service.bigquery.get_aggregate_hub_stats, hometown_id)
+                logging.debug(f"    Fetched {len(stats)} sport stats for {pretty_name}")
+                
                 elevation = stats[0].get("regional_elevation", "Unknown") if stats else "Unknown"
                 climate_mock = {
                     "avg_elevation": f"{elevation}m" if elevation != "Unknown" else elevation,
@@ -40,6 +43,7 @@ async def _process_single_narrative(hub, insights_service, semaphore):
                 
                 # Generate via Gemini (bypassing internal individual DB updates in the service)
                 narrative = await insights_service.gemini.generate_hub_narrative(hometown_id, stats, climate_mock)
+                logging.info(f"  [AI] COMPLETED narrative for: {pretty_name}")
                 return {"hid": hometown_id, "narrative": narrative}
 
             except google_exceptions.ResourceExhausted:
@@ -91,14 +95,15 @@ async def generate_hub_narratives():
     logging.info(f"Checking Firestore synchronization for {len(hubs_to_sync)} existing narratives...")
 
     # 3. Parallel processing for NEW narratives
-    semaphore = asyncio.Semaphore(5) 
+    # Throttled to 3 concurrent AI calls to respect RPM limits and avoid thread pool saturation
+    semaphore = asyncio.Semaphore(3) 
     tasks = [_process_single_narrative(hub, insights_service, semaphore) for hub in hubs_to_process]
     
-    results = await asyncio.gather(*tasks)
-    successful_results = [r for r in results if r]
+    if tasks:
+        results = await asyncio.gather(*tasks)
+        successful_results = [r for r in results if r]
 
-    # 4. Batch Update BigQuery and Firestore for new results
-    if successful_results:
+        # 4. Batch Update BigQuery and Firestore for new results
         logging.info(f"Performing batch update for {len(successful_results)} narratives...")
         
         merge_query = f"""
@@ -118,17 +123,18 @@ async def generate_hub_narratives():
                 ])
             ]
         )
-        bq_service.client.query(merge_query, job_config=job_config).result()
+        query_job = bq_service.client.query(merge_query, job_config=job_config)
+        await asyncio.to_thread(query_job.result)
 
         # Update Firestore Serving Layer
-        for r in successful_results:
-            firestore_service.update_field(r['hid'], "narrative", r['narrative'])
+        fs_updates = [{"id": r["hid"], "narrative": r["narrative"]} for r in successful_results]
+        await asyncio.to_thread(firestore_service.batch_update_fields, fs_updates)
 
     # 5. Ensure existing BigQuery narratives are present in Firestore
-    for h in hubs_to_sync:
-        # We always update to ensure the serving layer is fresh, 
-        # though we could optimize by checking FS existence first.
-        firestore_service.update_field(h['id'], "narrative", h['narrative'])
+    if hubs_to_sync:
+        logging.info(f"Synchronizing {len(hubs_to_sync)} existing narratives to Firestore...")
+        fs_sync_updates = [{"id": h["id"], "narrative": h["narrative"]} for h in hubs_to_sync]
+        await asyncio.to_thread(firestore_service.batch_update_fields, fs_sync_updates)
 
     logging.info("Hub narrative generation and Firestore synchronization complete.")
 

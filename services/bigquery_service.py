@@ -1,12 +1,12 @@
 from google.cloud import bigquery
-from functools import lru_cache
+from functools import lru_cache, cached_property
+import threading
 from typing import Optional
 
 class BigQueryService:
     def __init__(self, project_id: str):
         self.client = bigquery.Client(project=project_id)
 
-    @lru_cache(maxsize=128)
     def get_all_hubs(self):
         """
         Fetches all unique regional hubs stored in BigQuery.
@@ -28,7 +28,6 @@ class BigQueryService:
         query_job = self.client.query(query)
         return [dict(row) for row in query_job.result()]
 
-    @lru_cache(maxsize=512)
     def get_aggregate_hub_stats(self, hometown_id: str):
         """
         Fetches aggregate counts per sport for a region. 
