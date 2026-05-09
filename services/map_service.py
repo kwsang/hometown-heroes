@@ -13,16 +13,16 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, project_id: str, api_
 
         hubs_js_array.append(f"""
             {{
-                id: {json.dumps(hub['id'])},
+                id: {json.dumps(hub.get('id', 'unknown'))},
                 city: {json.dumps(hub.get('pretty_city_name', 'Unknown'))},
                 pretty_city_name: {json.dumps(hub.get('pretty_city_name', 'Unknown'))},
                 athlete_count: {hub.get('athlete_count', 0)},
                 sports: {json.dumps(hub_sports)},
                 sports_data: {json.dumps(hub.get('sports', []))},
-                lat: {hub['lat'] if hub['lat'] is not None else 'null'},
-                lng: {hub['lng'] if hub['lng'] is not None else 'null'},
-                region: {json.dumps(hub['region'])},
-                description: `{hub['description']}`
+                lat: {hub.get('lat') if hub.get('lat') is not None else 'null'},
+                lng: {hub.get('lng') if hub.get('lng') is not None else 'null'},
+                region: {json.dumps(hub.get('region', 'Global'))},
+                description: {json.dumps(hub.get('description') or f"A collective hub for {hub.get('athlete_count', 0)} Team USA athletes in the {hub.get('region', 'Global')} region.")}
             }}
         """)
     hubs_js = ",\n".join(hubs_js_array)
