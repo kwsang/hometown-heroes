@@ -2,7 +2,7 @@ import os
 import logging
 import io
 import sys
-import concurrent.futures
+import time
 from google.cloud import bigquery
 from google.cloud import storage
 from vertexai.preview.vision_models import ImageGenerationModel
@@ -27,7 +27,8 @@ def _process_sport_image(sport_name, project_id, bucket_name, model):
     
     prompt = (
         f"A vibrant and modern flat vector clipart illustration representing the sport of {sport_name}. "
-        "Clean minimal design, bold colors, professional aesthetic, isolated on white background. "
+        "Clean minimal design, bold colors, professional aesthetic, isolated on transparent background. "
+        "If the sport is a PARALYMPIC sport, incorporate subtle design elements that evoke inclusivity and adaptive sports. Do NOT make it untasteful or stereotypical. Focus on the essence of the sport while ensuring the image is respectful and empowering. "
         "No text, no photorealistic details."
     )
 
@@ -81,7 +82,7 @@ def generate_sport_images():
         logging.error(f"Could not access table '{table_id}': {e}")
         return
 
-    model = ImageGenerationModel.from_pretrained("imagen-3.0-fast-generate-001")
+    model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
 
     # 1. Identify sports missing images
     query = f"""
@@ -101,15 +102,19 @@ def generate_sport_images():
 
     logging.info(f"Processing {len(sports)} sport images...")
 
-    # 2. Parallel Generation and Upload
+    # 2. Throttled Generation and Upload
+    # Quota: 10 requests per minute -> 1 request every 6 seconds.
     results = []
-    max_workers = int(os.getenv("IMG_WORKERS", 4)) # Lower worker count for Imagen rate limits
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(_process_sport_image, s, project_id, bucket_name, model) for s in sports]
-        for future in concurrent.futures.as_completed(futures):
-            res = future.result()
-            if res:
-                results.append(res)
+    request_delay = 6.0 # seconds
+
+    for i, sport in enumerate(sports):
+        res = _process_sport_image(sport, project_id, bucket_name, model)
+        if res:
+            results.append(res)
+        
+        # Delay after each request (except the last one) to respect the 10 RPM quota
+        if i < len(sports) - 1:
+            time.sleep(request_delay)
 
     # 3. Batch Update BigQuery
     if results:

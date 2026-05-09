@@ -65,7 +65,7 @@ def get_insights_js(api_key: str) -> str:
     Returns the JS logic to fetch and display the hub narrative.
     Assumes 'hubId' is available in the parent JavaScript scope.
     """
-    return f"""
+    return rf"""
                 // Fetch narrative lazily to prioritize UI responsiveness
                 fetch(`/api/v1/hubs/${{encodeURIComponent(hubId)}}/narrative`, {{
                     headers: {{ 'Authorization': `Bearer {api_key}` }} 

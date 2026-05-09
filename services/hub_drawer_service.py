@@ -1,3 +1,4 @@
+import os
 from services import ai_insights_service
 
 def get_drawer_html() -> str:
@@ -18,7 +19,9 @@ def get_drawer_html() -> str:
 
 def get_drawer_js(api_key: str) -> str:
     """Returns the JavaScript logic for opening, closing, and populating the hub details drawer."""
-    return f"""
+    return rf"""
+        let activeHighlightMarker = null;
+
         function closeDrawer() {{
             const drawer = document.getElementById('drawer');
             drawer.classList.remove('w-full', 'md:w-[675px]', 'border-slate-100');
@@ -33,12 +36,81 @@ def get_drawer_js(api_key: str) -> str:
                 }}
                 m.zIndex = null;
             }});
+
+            // Re-trigger random highlight after a short delay
+            setTimeout(highlightRandomHub, 500);
+        }}
+
+        function clearRandomHighlight() {{
+            if (activeHighlightMarker) {{
+                activeHighlightMarker.setMap(null);
+                activeHighlightMarker = null;
+            }}
+            markers.forEach(m => {{
+                if (m.content && m.content.scale > 1.0) {{
+                    m.content.scale = 1.0;
+                    m.content.borderColor = '#ffffff';
+                }}
+            }});
+        }}
+
+        async function highlightRandomHub() {{
+            if (document.getElementById('drawer').classList.contains('border-slate-100')) return;
+            clearRandomHighlight();
+
+            // 1. Find visible hubs
+            const visibleMarkers = markers.filter(m => m.map !== null);
+            if (visibleMarkers.length === 0) return;
+
+            // 2. Identify top hubs by their strongest sport
+            const candidateHubs = hubs.filter(h => visibleMarkers.some(m => m.id === h.id))
+                .map(h => {{
+                    const topSport = h.sports_data.reduce((prev, curr) => (prev.count > curr.count) ? prev : curr, {{count: 0}});
+                    return {{ ...h, topSport }};
+                }})
+                .sort((a, b) => b.topSport.count - a.topSport.count)
+                .slice(0, 5); // Take top 5 for a mix of priority and randomness
+
+            if (candidateHubs.length === 0) return;
+            const target = candidateHubs[Math.floor(Math.random() * candidateHubs.length)];
+            const marker = markers.find(m => m.id === target.id);
+
+            if (marker && marker.content) {{
+                // Enlarge
+                marker.content.scale = 1.8;
+                marker.content.borderColor = '#3b82f6';
+                marker.zIndex = 500;
+
+                // Create Floating Sport Bubble
+                const sportId = target.topSport.sport.toLowerCase().replace(/ /g, "_").replace(/\//g, "_");
+                const bucket = hubs[0] ? "{os.getenv('GOOGLE_CLOUD_PROJECT')}-hub-images" : "";
+                const iconUrl = `https://storage.googleapis.com/${{bucket}}/sports/${{sportId}}.webp`;
+
+                const bubble = document.createElement('div');
+                bubble.innerHTML = `
+                    <div class="relative animate-bounce">
+                        <div class="w-8 h-8 bg-white rounded-full border-2 border-blue-500 shadow-lg overflow-hidden flex items-center justify-center p-0.5">
+                            <img src="${{iconUrl}}" class="w-full h-full object-contain" onerror="this.src='https://www.gstatic.com/images/branding/product/2x/googleg_32dp.png'">
+                        </div>
+                    </div>
+                `;
+
+                const {{ AdvancedMarkerElement }} = await google.maps.importLibrary("marker");
+                activeHighlightMarker = new AdvancedMarkerElement({{
+                    map: map,
+                    position: {{ lat: target.lat + 0.5, lng: target.lng }}, // Offset slightly north
+                    content: bubble,
+                    zIndex: 600
+                }});
+            }}
         }}
 
         async function openDrawer(hubId, hubCity) {{
             const drawer = document.getElementById('drawer');
             const content = document.getElementById('drawer-content');
             
+            clearRandomHighlight();
+
             // Expand the side panel
             drawer.classList.remove('w-0', 'border-transparent');
             drawer.classList.add('w-full', 'md:w-[675px]', 'border-slate-100');
@@ -140,4 +212,7 @@ def get_drawer_js(api_key: str) -> str:
                 content.innerHTML = '<p class="text-red-500 font-bold text-center">Failed to load regional data.</p>';
             }}
         }}
+
+        // Automatically cycle the featured hub highlight every 5 seconds when idle
+        setInterval(highlightRandomHub, 5000);
     """

@@ -17,6 +17,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                 pretty_city_name: {json.dumps(hub['pretty_city_name'])},
                 athlete_count: {hub['total_athlete_count']},
                 sports: {json.dumps(hub_sports)},
+                sports_data: {json.dumps(hub.get('sports', []))},
                 lat: {hub['lat'] if hub['lat'] is not None else 'null'},
                 lng: {hub['lng'] if hub['lng'] is not None else 'null'},
                 region: {json.dumps(hub['region'])},
@@ -169,6 +170,8 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
 
                     // Apply initial filters
                     updateFilters();
+                    // Start initial random highlight
+                    setTimeout(highlightRandomHub, 1500);
                 }}
 
                 window.toggleRegion = (region) => {{
