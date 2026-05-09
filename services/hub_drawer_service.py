@@ -23,6 +23,7 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
         let activeHighlightMarker = null;
         let currentlyHighlightedHubId = null;
         let lastFeaturedSport = null;
+        let activeHubId = null;
 
         function closeDrawer() {{
             const drawer = document.getElementById('drawer');
@@ -126,6 +127,8 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
             
             clearRandomHighlight();
 
+            activeHubId = hubId; // Track the current selection to prevent late-arriving async updates
+
             // Expand the side panel
             drawer.classList.remove('w-0', 'border-transparent');
             drawer.classList.add('w-full', 'md:w-[675px]', 'border-slate-100');
@@ -219,6 +222,9 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
                 }})
                     .then(res => res.json())
                     .then(data => {{
+                        // Prevent race condition: only update if this hub is still the one selected
+                        if (activeHubId !== hubId) return;
+
                         const imgContainer = document.getElementById('hub-image-container');
                         if (data && data.image_data) {{
                              const rawData = data.image_data.trim().replace(/^<|>$/g, '');

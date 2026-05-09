@@ -72,6 +72,9 @@ def get_insights_js(api_key: str) -> str:
                 }})
                     .then(res => res.json())
                     .then(data => {{
+                        // Only update the narrative if the user hasn't switched to another hub
+                        if (activeHubId !== hubId) return;
+
                         const narrativeEl = document.getElementById('narrative-text');
                         if (narrativeEl) {{
                             narrativeEl.classList.remove('animate-pulse');
