@@ -190,8 +190,8 @@ async def hubs_page():
     except google.api_core.exceptions.Forbidden as e:
         logging.error(f"Permission denied accessing BigQuery: {e}")
         raise HTTPException(status_code=403, detail="The service account does not have permission to read from BigQuery.")
-    except Exception as e:
-        logging.error(f"Unexpected error loading hubs page: {e}", exc_info=True)
+    except Exception:
+        logging.exception("Unexpected error occurred while loading hubs page")
         raise HTTPException(status_code=500, detail="Failed to load regional hubs data.")
 
 @app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)

@@ -14,9 +14,9 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, project_id: str, api_
         hubs_js_array.append(f"""
             {{
                 id: {json.dumps(hub['id'])},
-                city: {json.dumps(hub['city'])},
-                pretty_city_name: {json.dumps(hub['pretty_city_name'])},
-                athlete_count: {hub['total_athlete_count']},
+                city: {json.dumps(hub.get('pretty_city_name', 'Unknown'))},
+                pretty_city_name: {json.dumps(hub.get('pretty_city_name', 'Unknown'))},
+                athlete_count: {hub.get('athlete_count', 0)},
                 sports: {json.dumps(hub_sports)},
                 sports_data: {json.dumps(hub.get('sports', []))},
                 lat: {hub['lat'] if hub['lat'] is not None else 'null'},
