@@ -31,6 +31,15 @@ class ImageGenerationService:
         Returns the GCS URL or base64 encoded image for the hub. 
         Checks BigQuery cache first.
         """
+        # 0. Check Firestore Serving Layer (Fastest)
+        try:
+            hub_doc = self.firestore.get_hub(hometown_id)
+            if hub_doc and hub_doc.get("hub_image"):
+                logging.info(f"Image for {hometown_id} found in Firestore.")
+                return hub_doc["hub_image"]
+        except Exception as e:
+            logging.warning(f"Firestore image lookup failed: {e}")
+
         # 1. Check BigQuery Cache
         try:
             cached_image = self.bigquery.get_cached_image(hometown_id)

@@ -24,6 +24,7 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
         let currentlyHighlightedHubId = null;
         let lastFeaturedSport = null;
         let activeHubId = null;
+        const imageCache = {}; // Client-side cache for images
         const narrativeCache = {}; // Client-side cache for session persistence
 
         function closeDrawer() {{
@@ -227,26 +228,40 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
 
                 document.getElementById('stats-container').innerHTML = sportHtml;
 
-                 // Fetch Hub Image lazily (moved to load earlier)
-                fetch(`/api/v1/hubs/${{encodeURIComponent(hubId)}}/image?pretty_name=${{encodeURIComponent(prettyName)}}&region=${{encodeURIComponent(region)}}`, {{
-                    headers: {{ 'Authorization': `Bearer {api_key}` }}
-                }})
-                    .then(res => res.json())
-                    .then(data => {{
-                        // Prevent race condition: only update if this hub is still the one selected
-                        if (activeHubId !== hubId) return;
-
-                        const imgContainer = document.getElementById('hub-image-container');
-                        if (data && data.image_data) {{
-                             const rawData = data.image_data.trim().replace(/^<|>$/g, '');
-                             // Check if image_data is a GCS URL or a Base64 string
-                            const src = (rawData.startsWith('http') || rawData.startsWith('https')) ? rawData : `data:image/png;base64,${{rawData}}`;
-                            imgContainer.innerHTML = `<img src="${{src}}" class="w-full h-full object-cover">`;
-                        }}
+                // Check if image is already available in the pre-loaded data or cache
+                const preLoadedImage = hub.hub_image || imageCache[hubId];
+                
+                if (preLoadedImage) {
+                    const imgContainer = document.getElementById('hub-image-container');
+                    const src = (preLoadedImage.startsWith('http')) ? preLoadedImage : `data:image/png;base64,${{preLoadedImage}}`;
+                    imgContainer.innerHTML = `<img src="${{src}}" class="w-full h-full object-cover">`;
+                } else {
+                    // Fetch Hub Image lazily only if missing
+                    fetch(`/api/v1/hubs/${{encodeURIComponent(hubId)}}/image?pretty_name=${{encodeURIComponent(prettyName)}}&region=${{encodeURIComponent(region)}}`, {{
+                        headers: {{ 'Authorization': `Bearer {api_key}` }}
                     }})
-                    .catch(err => {{
-                        document.getElementById('hub-image-container').innerHTML = '<span class="text-slate-300">🏔️</span>';
-                    }});
+                        .then(res => res.json())
+                        .then(data => {{
+                            // Prevent race condition: only update if this hub is still the one selected
+                            if (activeHubId !== hubId) return;
+
+                            const imgContainer = document.getElementById('hub-image-container');
+                            if (data && data.image_data) {{
+                                const rawData = data.image_data.trim().replace(/^<|>$/g, '');
+                                // Check if image_data is a GCS URL or a Base64 string
+                                const src = (rawData.startsWith('http') || rawData.startsWith('https')) ? rawData : `data:image/png;base64,${{rawData}}`;
+                                imgContainer.innerHTML = `<img src="${{src}}" class="w-full h-full object-cover">`;
+                                
+                                // Cache for future opens in this session
+                                imageCache[hubId] = rawData;
+                            }}
+                        }})
+                        .catch(err => {{
+                            if (activeHubId === hubId) {
+                                document.getElementById('hub-image-container').innerHTML = '<span class="text-slate-300">🏔️</span>';
+                            }
+                        }});
+                }
 
                 // Check JS cache first
                 if (narrativeCache[hubId]) {{

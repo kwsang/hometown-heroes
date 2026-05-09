@@ -11,6 +11,12 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, project_id: str, api_
         hub_sports = [s['sport'] for s in hub.get('sports', [])]
         for s in hub_sports: all_sports.add(s)
 
+        # Optimization: Only include the image in the initial payload if it's a URL.
+        # This prevents massive base64 strings from bloating the initial map bundle.
+        hub_image = hub.get('hub_image')
+        if hub_image and not str(hub_image).startswith('http'):
+            hub_image = None
+
         hubs_js_array.append(f"""
             {{
                 id: {json.dumps(hub.get('id', 'unknown'))},
@@ -19,6 +25,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, project_id: str, api_
                 athlete_count: {hub.get('athlete_count', 0)},
                 sports: {json.dumps(hub_sports)},
                 sports_data: {json.dumps(hub.get('sports', []))},
+                hub_image: {json.dumps(hub_image)},
                 lat: {hub.get('lat') if hub.get('lat') is not None else 'null'},
                 lng: {hub.get('lng') if hub.get('lng') is not None else 'null'},
                 region: {json.dumps(hub.get('region', 'Global'))},
