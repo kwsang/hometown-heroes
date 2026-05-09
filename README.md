@@ -144,5 +144,8 @@ Ensure your service account has the following roles:
 *   **Enhanced Paralympic Accessibility Mapping:** Highlighting specific adaptive infrastructure within hubs.
 *   **Predictive Talent Analytics:** Identifying "Emerging Hubs" where environmental factors align for new disciplines.
 
+### Google Cloud Recording
+https://github.com/user-attachments/assets/c38b76ce-91b1-4a5c-9aca-fb94d8902a08
+
 ---
 *This project was developed for the Team USA Hackathon, adhering to all athlete NIL protections and official terminology requirements.*
