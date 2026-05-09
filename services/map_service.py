@@ -173,8 +173,8 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
 
                     // Apply initial filters
                     updateFilters();
-                    // Start initial random highlight
-                    setTimeout(highlightRandomHub, 1500);
+                    // Start initial random highlight after 5 seconds
+                    setTimeout(highlightRandomHub, 5000);
                 }}
 
                 window.toggleRegion = (region) => {{
@@ -224,6 +224,14 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                         const matchesSport = !isFilteringSports || m.sports.some(s => selectedSports.has(s));
                         m.map = (matchesRegion && matchesCount && matchesSport) ? map : null;
                     }});
+
+                    // If the currently featured hub just got filtered out, clear the highlight
+                    if (typeof currentlyHighlightedHubId !== 'undefined' && currentlyHighlightedHubId) {{
+                        const hMarker = markers.find(m => m.id === currentlyHighlightedHubId);
+                        if (hMarker && hMarker.map === null) {{
+                            clearRandomHighlight();
+                        }}
+                    }}
 
                     // Update Chips
                     const chipContainer = document.getElementById('selected-sports-chips');

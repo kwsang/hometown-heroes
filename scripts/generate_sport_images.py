@@ -98,36 +98,53 @@ def generate_sport_images():
 
     model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
 
-    # 1. Identify sports missing images
+    # 1. Identify sports needing images (NULL in BQ or missing in GCS)
     query = f"""
-        SELECT sport_name 
-        FROM `{project_id}.{dataset_id}.{table_id}` 
-        WHERE sport_image IS NULL
+        SELECT sport_name, sport_image 
+        FROM `{project_id}.{dataset_id}.{table_id}`
     """
     try:
-        sports = [row.sport_name for row in bq_client.query(query).result()]
+        rows = list(bq_client.query(query).result())
     except Exception as e:
         logging.error(f"Could not fetch sports from BQ: {e}")
         return
 
-    if not sports:
-        logging.info("All sports already have cached images.")
+    storage_client = storage.Client(project=project_id)
+    bucket = storage_client.bucket(bucket_name)
+    sports_to_generate = []
+
+    for row in rows:
+        sport_name = row.sport_name
+        image_url = row.sport_image
+        
+        if not image_url:
+            sports_to_generate.append(sport_name)
+        else:
+            # Check if the file actually exists in GCS to ensure data integrity
+            sport_id = sport_name.lower().replace(" ", "_").replace("/", "_")
+            gcs_path = f"sports/{sport_id}.webp"
+            if not bucket.blob(gcs_path).exists():
+                logging.warning(f"Image referenced for {sport_name} but missing in GCS. Re-generating...")
+                sports_to_generate.append(sport_name)
+
+    if not sports_to_generate:
+        logging.info("All sports have valid image references in BigQuery and GCS.")
         return
 
-    logging.info(f"Processing {len(sports)} sport images...")
+    logging.info(f"Processing {len(sports_to_generate)} sport images...")
 
     # 2. Throttled Generation and Upload
     # Quota: 10 requests per minute -> 1 request every 6 seconds.
     results = []
     request_delay = 6.0 # seconds
 
-    for i, sport in enumerate(sports):
+    for i, sport in enumerate(sports_to_generate):
         res = _process_sport_image(sport, project_id, bucket_name, model)
         if res:
             results.append(res)
         
         # Delay after each request (except the last one) to respect the 10 RPM quota
-        if i < len(sports) - 1:
+        if i < len(sports_to_generate) - 1:
             time.sleep(request_delay)
 
     # 3. Batch Update BigQuery

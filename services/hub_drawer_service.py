@@ -21,6 +21,7 @@ def get_drawer_js(api_key: str) -> str:
     """Returns the JavaScript logic for opening, closing, and populating the hub details drawer."""
     return rf"""
         let activeHighlightMarker = null;
+        let currentlyHighlightedHubId = null;
         let lastFeaturedSport = null;
 
         function closeDrawer() {{
@@ -38,8 +39,8 @@ def get_drawer_js(api_key: str) -> str:
                 m.zIndex = null;
             }});
 
-            // Re-trigger random highlight after a short delay
-            setTimeout(highlightRandomHub, 500);
+            // Re-trigger random highlight after the requested 5s delay
+            setTimeout(highlightRandomHub, 5000);
         }}
 
         function clearRandomHighlight() {{
@@ -47,6 +48,7 @@ def get_drawer_js(api_key: str) -> str:
                 activeHighlightMarker.setMap(null);
                 activeHighlightMarker = null;
             }}
+            currentlyHighlightedHubId = null;
             markers.forEach(m => {{
                 if (m.content && m.content.scale > 1.0) {{
                     m.content.scale = 1.0;
@@ -77,6 +79,7 @@ def get_drawer_js(api_key: str) -> str:
 
             if (pool.length === 0) return;
             const target = pool[Math.floor(Math.random() * pool.length)];
+            currentlyHighlightedHubId = target.id;
             lastFeaturedSport = target.topSport.sport;
 
             const marker = markers.find(m => m.id === target.id);
