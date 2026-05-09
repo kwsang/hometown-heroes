@@ -81,8 +81,10 @@ def get_drawer_js(api_key: str) -> str:
                 const sportHtml = statsData.statistics.map(item => {{
                     // Normalize sport name to Title Case for display
                     const sportName = item.sport_name.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    const isSelected = selectedSports.has(item.sport_name);
+                    const cardClass = isSelected ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500' : 'bg-slate-100 border-slate-200';
                     return `
-                        <div class="bg-slate-100 p-2 rounded-xl border border-slate-200 flex justify-between items-center text-sm shadow-sm">
+                        <div class="${{cardClass}} p-2 rounded-xl border flex justify-between items-center text-sm shadow-sm transition-all duration-300">
                             <div class="truncate mr-1">
                                 <span class="text-sm font-bold text-slate-900 truncate block uppercase tracking-widest">${{sportName}}</span>
                             </div>
