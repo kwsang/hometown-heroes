@@ -15,7 +15,12 @@ class AIInsightsService:
 
     async def get_narrative(self, hometown_id: str) -> str:
         """Fetch stats and generate a narrative for a specific hub."""
-        # 1. Check BigQuery Cache First
+        # 1. Check Serving Layer (Firestore) first for lowest latency
+        hub_doc = self.firestore.get_hub(hometown_id)
+        if hub_doc and hub_doc.get("narrative"):
+            return hub_doc["narrative"]
+
+        # 2. Fallback to BigQuery Cache
         cached_narrative = self.bigquery.get_cached_narrative(hometown_id)
         if cached_narrative:
             return cached_narrative
@@ -30,10 +35,10 @@ class AIInsightsService:
             "notable_features": "Local terrain and climate conditions relevant to sport excellence."
         }
         
-        # 2. Generate if not cached
+        # 3. Generate if not cached anywhere
         narrative = await self.gemini.generate_hub_narrative(hometown_id, stats, climate_mock)
         
-        # 3. Persist to cache (BigQuery) and Serving Layer (Firestore)
+        # 4. Persist to cache (BigQuery) and Serving Layer (Firestore)
         try:
             self.bigquery.update_hub_narrative(hometown_id, narrative)
             self.firestore.update_field(hometown_id, "narrative", narrative)
