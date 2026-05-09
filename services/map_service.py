@@ -151,6 +151,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                             content: pin,
                         }});
                         
+                        marker.id = hub.id;
                         marker.region = hub.region;
                         marker.athleteCount = hub.athlete_count;
                         marker.sports = hub.sports;

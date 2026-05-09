@@ -24,6 +24,15 @@ def get_drawer_js(api_key: str) -> str:
             drawer.classList.remove('w-full', 'md:w-[675px]', 'border-slate-100');
             drawer.classList.add('w-0', 'border-transparent');
             document.body.style.overflow = 'auto';
+
+            // Reset all markers to their original state
+            markers.forEach(m => {{
+                if (m.content) {{
+                    m.content.scale = 1.0;
+                    m.content.borderColor = '#ffffff';
+                }}
+                m.zIndex = null;
+            }});
         }}
 
         async function openDrawer(hubId, hubCity) {{
@@ -33,6 +42,16 @@ def get_drawer_js(api_key: str) -> str:
             // Expand the side panel
             drawer.classList.remove('w-0', 'border-transparent');
             drawer.classList.add('w-full', 'md:w-[675px]', 'border-slate-100');
+
+            // Highlight the active marker and reset others
+            markers.forEach(m => {{
+                const isSelected = m.id === hubId;
+                if (m.content) {{
+                    m.content.scale = isSelected ? 1.5 : 1.0;
+                    m.content.borderColor = isSelected ? '#0f172a' : '#ffffff'; // Dark slate border for selection
+                }}
+                m.zIndex = isSelected ? 1000 : null;
+            }});
 
             // Center the map on the hub point
             const hub = hubs.find(h => h.id === hubId);
