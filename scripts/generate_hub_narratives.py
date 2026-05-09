@@ -78,7 +78,7 @@ async def generate_hub_narratives():
         return
 
     # 1. Identify hubs missing narratives
-    hubs_to_process = [h for h in hubs if not bq_service.get_cached_narrative(h['id'])]
+    hubs_to_process = [h for h in hubs if not h.get('narrative')]
     
     if not hubs_to_process:
         logging.info("All hubs already have narratives.")

@@ -19,6 +19,8 @@ class BigQueryService:
                 total_athlete_count as athlete_count,
                 lat, 
                 lng,
+                narrative,
+                hub_image,
                 region,
                 CONCAT('A collective hub for ', total_athlete_count, ' Team USA athletes in the ', region, ' region.') as description
             FROM `{self.client.project}.team_usa_data.regional_hubs_summary`

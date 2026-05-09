@@ -12,19 +12,23 @@ class AIInsightsService:
         self.gemini = GeminiNarrativeService(project_id=project_id)
         self.bigquery = BigQueryService(project_id=project_id)
         self.firestore = FirestoreService(project_id=project_id)
+        # Extreme performance: In-memory cache for the most popular hubs
+        self._memory_cache = {}
 
     async def get_narrative(self, hometown_id: str) -> str:
         """Fetch stats and generate a narrative for a specific hub."""
         # 1. Check Serving Layer (Firestore) first for lowest latency
+        # 0. Check process memory (Fastest - 0ms network latency)
+        if hometown_id in self._memory_cache:
+            return self._memory_cache[hometown_id]
+
+        # 1. Check Serving Layer (Firestore) for low latency (~20-50ms)
         hub_doc = self.firestore.get_hub(hometown_id)
         if hub_doc and hub_doc.get("narrative"):
+            self._memory_cache[hometown_id] = hub_doc["narrative"]
             return hub_doc["narrative"]
 
-        # 2. Fallback to BigQuery Cache
-        cached_narrative = self.bigquery.get_cached_narrative(hometown_id)
-        if cached_narrative:
-            return cached_narrative
-
+        # 2. Generate if not cached in Firestore (Medium - 2-5s)
         stats = self.bigquery.get_aggregate_hub_stats(hometown_id)
         if not stats:
             return "Regional data is currently being indexed."
@@ -38,6 +42,8 @@ class AIInsightsService:
         # 3. Generate if not cached anywhere
         narrative = await self.gemini.generate_hub_narrative(hometown_id, stats, climate_mock)
         
+        self._memory_cache[hometown_id] = narrative
+
         # 4. Persist to cache (BigQuery) and Serving Layer (Firestore)
         try:
             self.bigquery.update_hub_narrative(hometown_id, narrative)
@@ -67,6 +73,15 @@ def get_insights_js(api_key: str) -> str:
     """
     return rf"""
                 // Fetch narrative lazily to prioritize UI responsiveness
+                // 1. Check browser session storage first
+                const sessionKey = `narrative_${{hubId}}`;
+                const cached = sessionStorage.getItem(sessionKey);
+                if (cached) {{
+                    const narrativeEl = document.getElementById('narrative-text');
+                    if (narrativeEl) narrativeEl.innerHTML = cached;
+                    return;
+                }}
+
                 fetch(`/api/v1/hubs/${{encodeURIComponent(hubId)}}/narrative`, {{
                     headers: {{ 'Authorization': `Bearer {api_key}` }} 
                 }})
@@ -83,6 +98,8 @@ def get_insights_js(api_key: str) -> str:
                             
                             // Populate the global cache
                             narrativeCache[hubId] = formattedNarrative;
+                            // Populate browser session storage
+                            sessionStorage.setItem(sessionKey, formattedNarrative);
                         }}
                     }})
                     .catch(err => {{
