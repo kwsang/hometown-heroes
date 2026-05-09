@@ -63,15 +63,15 @@ app = FastAPI(title="Hometown Heroes API")
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
-    # Define a CSP that allows Google Maps, Google Fonts, and Base64 images from Vertex AI
+    # Define a robust CSP for Google Maps, Google Fonts, Swagger UI (multiple CDNs), and Vertex AI assets
     csp = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://*.google.com; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com; "
-        "img-src 'self' data: https://storage.googleapis.com https://www.gstatic.com https://maps.gstatic.com https://*.googleapis.com https://*.google.com; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://maps.googleapis.com https://*.google.com https://cdn.jsdelivr.net https://unpkg.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com https://cdn.jsdelivr.net https://unpkg.com; "
+        "img-src 'self' data: https://storage.googleapis.com https://www.gstatic.com https://maps.gstatic.com https://*.googleapis.com https://*.google.com https://cdn.jsdelivr.net https://unpkg.com https://fastapi.tiangolo.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "frame-src 'self' https://*.google.com; "
-        "connect-src 'self' https://*.googleapis.com https://*.google.com"
+        "connect-src 'self' https://*.googleapis.com https://*.google.com https://cdn.jsdelivr.net https://unpkg.com;"
     )
     response.headers["Content-Security-Policy"] = csp
     response.headers["X-Content-Type-Options"] = "nosniff"
