@@ -78,7 +78,11 @@ def get_insights_js(api_key: str) -> str:
                         const narrativeEl = document.getElementById('narrative-text');
                         if (narrativeEl) {{
                             narrativeEl.classList.remove('animate-pulse');
-                            narrativeEl.innerHTML = data.narrative;
+                            const formattedNarrative = data.narrative;
+                            narrativeEl.innerHTML = formattedNarrative;
+                            
+                            // Populate the global cache
+                            narrativeCache[hubId] = formattedNarrative;
                         }}
                     }})
                     .catch(err => {{

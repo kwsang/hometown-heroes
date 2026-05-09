@@ -24,6 +24,7 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
         let currentlyHighlightedHubId = null;
         let lastFeaturedSport = null;
         let activeHubId = null;
+        const narrativeCache = {}; // Client-side cache for session persistence
 
         function closeDrawer() {{
             const drawer = document.getElementById('drawer');
@@ -171,7 +172,7 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
                         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
                 </div>
-                {ai_insights_service.get_insights_html()}
+                <div id="narrative-section-container"></div>
             `;
             
             try {{
@@ -182,6 +183,16 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
                 if (!statsResponse.ok) throw new Error('Failed to fetch stats');
                 const statsData = await statsResponse.json();
                 
+                const totalAthletes = statsData.statistics.reduce((acc, curr) => acc + curr.athlete_count, 0);
+                
+                // Inject the insights container with hub-specific context
+                document.getElementById('narrative-section-container').innerHTML = `
+                    <div id="narrative-container" class="bg-blue-50 p-4 rounded-2xl border border-blue-100 mb-4">
+                        <h3 class="text-sm font-bold text-blue-900 mb-2 flex items-center"><span class="mr-2">✨</span> AI Insights</h3>
+                        <p id="narrative-text" class="text-blue-900 leading-relaxed opacity-80 text-sm">Analyzing success patterns for ${{totalAthletes}} athletes in ${{prettyName}}...</p>
+                    </div>
+                `;
+
                 const region = statsData.statistics[0]?.region || 'Global';
                 
                 const regionBadge = `<div class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold uppercase tracking-widest mb-2">${{region}} Region</div>`;
@@ -237,8 +248,13 @@ def get_drawer_js(project_id: str, api_key: str) -> str:
                         document.getElementById('hub-image-container').innerHTML = '<span class="text-slate-300">🏔️</span>';
                     }});
 
-                {ai_insights_service.get_insights_js(api_key)}
-
+                // Check JS cache first
+                if (narrativeCache[hubId]) {{
+                    const el = document.getElementById('narrative-text');
+                    if (el) el.innerHTML = narrativeCache[hubId];
+                }} else {{
+                    {ai_insights_service.get_insights_js(api_key)}
+                }}
             }} catch (err) {{
                 content.innerHTML = '<p class="text-red-500 font-bold text-center">Failed to load regional data.</p>';
             }}
