@@ -13,13 +13,13 @@ While many see the US as a single entity, its true strength is a mosaic of regio
 *   **Dynamic Highlighting:** An idle-state discovery mode that automatically features statistically significant hubs, helping fans discover sports and regions they might not have explored.
 *   **Compliance-Focused Analytics:** Built with strict adherence to NIL (Name, Image, and Likeness) protections, providing deep aggregate insights into community strength without compromising athlete privacy.
 
-### 🏗️ How We Built It
+### 🏗️ How I Built It
 The project is powered by a robust ETL pipeline and a multi-tiered AI architecture:
-1.  **Data Extraction:** We used **Gemini 2.5 Flash Lite** to perform multimodal parsing of official Team USA athlete PDFs. This allowed us to extract structured data from complex layouts without manual OCR.
+1.  **Data Extraction:** I used **Gemini 2.5 Flash Lite** to perform multimodal parsing of official Team USA athlete PDFs. This allowed me to extract structured data from complex layouts without manual OCR.
 2.  **Enrichment:** Athlete data was enriched with hometown geocoding via the **Google Maps API** and elevation data to analyze geographic trends.
-3.  **Intelligence Tier:** We leveraged **Gemini 2.5 Pro** to generate compliant, inspiring narratives for each regional hub. A specialized logic layer correlates local terrain and climate with sport-specific success while enforcing strict branding compliance.
-4.  **Asset Optimization:** Using **Imagen 3.0**, we generate custom hub imagery, which is then optimized into `.webp` format and served via **Google Cloud Storage** for lightning-fast frontend delivery.
-5.  **Multi-Tiered Storage:** **Google BigQuery** acts as our analytical source of truth and narrative cache, while **Cloud Firestore** serves as a high-performance NoSQL serving layer for sub-second map and drawer responsiveness.
+3.  **Intelligence Tier:** I leveraged **Gemini 2.5 Pro** to generate compliant, inspiring narratives for each regional hub. A specialized logic layer correlates local terrain and climate with sport-specific success while enforcing strict branding compliance.
+4.  **Asset Optimization:** Using **Imagen 3.0**, I generate custom hub imagery, which is then optimized into `.webp` format and served via **Google Cloud Storage** for lightning-fast frontend delivery.
+5.  **Multi-Tiered Storage:** **Google BigQuery** acts as my analytical source of truth and narrative cache, while **Cloud Firestore** serves as a high-performance NoSQL serving layer for sub-second map and drawer responsiveness.
 6.  **Edge-Ready Architecture:** Deployed on **Google Cloud Run**, the system utilizes **Secret Manager** for credential safety and a hardened **FastAPI** backend with custom CSP headers to ensure a secure, scalable fan experience.
 
 ### 🏆 Accomplishments that I'm proud of
@@ -29,9 +29,9 @@ The project is powered by a robust ETL pipeline and a multi-tiered AI architectu
 *   **Interactive Discovery Engine:** Developed a unique "Featured Hub" system that uses random rotation and floating sport bubbles to drive user engagement and surface local success stories.
 *   **Compliance-First Design:** Navigated complex Olympic branding and athlete NIL restrictions to build a deep storytelling engine that is both legally sound and inspirationally powerful.
 
-### 🧠 What We Learned
+### 🧠 What I Learned
 *   **Multimodal AI is a Game Changer:** Using Gemini to "read" PDFs directly saved dozens of hours of manual data entry and regular expression tuning.
-*   **Structured Output Engineering:** We learned how to strictly enforce JSON schemas and boundary validation (first/last athlete checks) to ensure 100% data integrity when working with LLMs.
+*   **Structured Output Engineering:** I learned how to strictly enforce JSON schemas and boundary validation (first/last athlete checks) to ensure 100% data integrity when working with LLMs.
 *   **Serving Layer Separation:** Moving real-time "reads" from BigQuery to **Cloud Firestore** transformed the user experience from "loading..." to "instant." 
 *   **The Power of WebP:** Transitioning from PNG to optimized WebP reduced image payloads by over 80% without visible quality loss.
 *   **Compliance-First Design:** Navigating the strict NIL (Name, Image, and Likeness) and branding restrictions taught us how to build meaningful data products while respecting athlete privacy and intellectual property.
@@ -48,7 +48,7 @@ The project is powered by a robust ETL pipeline and a multi-tiered AI architectu
 ### 🛠️ Tech Stack
 
 **Languages & Frameworks:**
-*   **Python:** The core of our ETL and backend services.
+*   **Python:** The core of my ETL and backend services.
 *   **FastAPI:** Powering the high-performance serving tier.
 *   **Tailwind CSS & Vanilla JS:** For a lightweight, responsive interactive map dashboard.
 
@@ -66,27 +66,12 @@ The project is powered by a robust ETL pipeline and a multi-tiered AI architectu
 *   **Google Maps Platform:** Geocoding and Elevation APIs.
 
 **Tools & Libraries:**
-*   `pypdf` for programmatic PDF manipulation.
-*   `pandas` for local data aggregation.
-*   `google-cloud-aiplatform` and `google-cloud-bigquery` for GCP integration.
-
-### 🔑 Prerequisites & Permissions
-To successfully deploy and manage this project, ensure your Google Cloud user or service account has the following roles and permissions:
-*   **Deployment:** `Cloud Run Admin`, `Cloud Build Editor`, and `Service Account User`.
-*   **Data & AI:** `BigQuery Data Editor`, `BigQuery User`, `Vertex AI User`, `Cloud Datastore User` (for Firestore), and `Storage Object Admin`.
-*   **Security:** `Secret Manager Secret Accessor` (if using Secret Manager for API keys).
-*   **Observability:** To view and debug application logs, you must have the `logging.logEntries.list` permission (typically included in **Project Viewer** or **Logs Viewer** roles).
-
-### 🛠️ Managing the Service Account
-To find the exact email of the service account your app is using:
-```bash
-gcloud run services describe hometown-heroes --format="value(spec.template.spec.serviceAccountName)"
-```
-
-To grant permissions (e.g., BigQuery access) to that account:
-```bash
-gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:YOUR_SERVICE_ACCOUNT_EMAIL" --role="roles/bigquery.dataViewer"
-```
+*   `pypdf` for programmatic PDF manipulation and segmenting.
+*   `pandas` for advanced data aggregation and ETL orchestration.
+*   `Pillow` (PIL) for high-performance image processing and WebP optimization.
+*   `google-cloud-*` (AI Platform, BigQuery, Firestore, Storage, Secret Manager) for comprehensive GCP service integration.
+*   `requests` for interfacing with Google Maps Platform and Elevation APIs.
+*   `Jinja2` for modular HTML template rendering.
 
 ---
 *This project was developed for the Team USA Hackathon, adhering to all athlete NIL protections and official terminology requirements.*
