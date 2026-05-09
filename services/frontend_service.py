@@ -78,7 +78,7 @@ def render_landing_page() -> str:
     """
 
 
-def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None, pretty_name: str = None, api_key: str = None) -> str:
+def render_hub_detail_page(hometown_id: str, stats: list, project_id: str, narrative: str = None, pretty_name: str = None, api_key: str = None) -> str:
     # Format the hometown ID for display (e.g., boulder-co -> Boulder Co)
     display_name = pretty_name if pretty_name else hometown_id.replace('-', ' ').title()
     region = stats[0].get("region", "Global") if stats else "Unknown"
@@ -101,7 +101,7 @@ def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None,
         """
 
     sport_items = ""
-    bucket = f"{os.getenv('GOOGLE_CLOUD_PROJECT', '')}-hub-images"
+    bucket = f"{project_id}-hub-images"
     for item in stats:
         sport_id = item['sport_name'].lower().replace(" ", "_").replace("/", "_")
         icon_url = f"https://storage.googleapis.com/{bucket}/sports/{sport_id}.webp"

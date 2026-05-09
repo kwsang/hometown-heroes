@@ -2,7 +2,7 @@ import json
 import os
 from . import frontend_service, hub_drawer_service
 
-def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) -> str:
+def render_hubs_page(hubs: list, google_maps_api_key: str, project_id: str, api_key: str = None) -> str:
     """Renders the interactive Google Maps page with regional hubs and legend."""
     # Prepare hub data for JavaScript and extract unique sports
     hubs_js_array = []
@@ -242,7 +242,7 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                         </div>
                     `).join('');
                 }}
-                {hub_drawer_service.get_drawer_js(api_key)}
+                {hub_drawer_service.get_drawer_js(project_id, api_key)}
             </script>
             <script async src="https://maps.googleapis.com/maps/api/js?key={google_maps_api_key}&callback=initMap&v=beta&libraries=marker&loading=async"></script>
             <div class="mt-8 text-center">

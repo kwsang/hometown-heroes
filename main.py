@@ -68,7 +68,7 @@ async def add_security_headers(request: Request, call_next):
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://*.google.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com; "
-        "img-src 'self' data: https://storage.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.google.com; "
+        "img-src 'self' data: https://storage.googleapis.com https://www.gstatic.com https://maps.gstatic.com https://*.googleapis.com https://*.google.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "frame-src 'self' https://*.google.com; "
         "connect-src 'self' https://*.googleapis.com https://*.google.com"
@@ -155,7 +155,7 @@ async def hubs_page():
         if not google_maps_api_key:
             logging.error("GOOGLE_MAPS_API_KEY environment variable is missing. Maps will not initialize.")
 
-        return render_hubs_page(hubs, google_maps_api_key, API_KEY)
+        return render_hubs_page(hubs, google_maps_api_key, PROJECT_ID, API_KEY)
     except google.api_core.exceptions.NotFound:
         logging.error("BigQuery Table 'regional_hubs_summary' not found. Have you run the processing scripts?")
         raise HTTPException(status_code=503, detail="Database table not initialized. Please run the data ingestion pipeline.")
@@ -185,6 +185,7 @@ async def hub_detail_page(hometown_id: str):
         return render_hub_detail_page(
             hometown_id, 
             stats, 
+            PROJECT_ID,
             narrative=hub_data.get('narrative'), 
             pretty_name=hub_data.get('pretty_city_name'),
             api_key=API_KEY

@@ -17,7 +17,7 @@ def get_drawer_html() -> str:
         </div>
     """
 
-def get_drawer_js(api_key: str) -> str:
+def get_drawer_js(project_id: str, api_key: str) -> str:
     """Returns the JavaScript logic for opening, closing, and populating the hub details drawer."""
     return rf"""
         let activeHighlightMarker = null;
@@ -92,7 +92,7 @@ def get_drawer_js(api_key: str) -> str:
 
                 // Create Floating Sport Bubble
                 const sportId = target.topSport.sport.toLowerCase().replace(/ /g, "_").replace(/\//g, "_");
-                const bucket = hubs[0] ? "{os.getenv('GOOGLE_CLOUD_PROJECT')}-hub-images" : "";
+                const bucket = "{project_id}-hub-images";
                 const iconUrl = `https://storage.googleapis.com/${{bucket}}/sports/${{sportId}}.webp`;
 
                 const bubble = document.createElement('div');
@@ -191,7 +191,7 @@ def get_drawer_js(api_key: str) -> str:
                     const cardClass = isSelected ? 'bg-blue-50 border-blue-500 ring-4 ring-blue-200 scale-[1.02] shadow-md z-10' : 'bg-slate-100 border-slate-200';
                     
                     const sportId = item.sport_name.toLowerCase().replace(/ /g, "_").replace(/\//g, "_");
-                    const bucket = "{os.getenv('GOOGLE_CLOUD_PROJECT', '')}-hub-images";
+                    const bucket = "{project_id}-hub-images";
                     const iconUrl = `https://storage.googleapis.com/${{bucket}}/sports/${{sportId}}.webp`;
 
                     return `
