@@ -3,6 +3,7 @@ import logging
 import io
 import sys
 import time
+from google.api_core import exceptions
 from google.cloud import bigquery
 from google.cloud import storage
 from vertexai.preview.vision_models import ImageGenerationModel
@@ -32,32 +33,45 @@ def _process_sport_image(sport_name, project_id, bucket_name, model):
         "No text, no photorealistic details."
     )
 
-    try:
-        # Generate using Imagen 3.0
-        response = model.generate_images(
-            prompt=prompt,
-            number_of_images=1,
-            language="en",
-            aspect_ratio="1:1"
-        )
+    max_retries = 3
+    retry_wait = 10  # Initial wait time in seconds if 429 is encountered
 
-        if response.images:
-            image_bytes = response.images[0]._image_bytes
-            
-            # Optimize for web: 400x400 WebP
-            with Image.open(io.BytesIO(image_bytes)) as img:
-                img = img.resize((400, 400), Image.Resampling.LANCZOS)
-                output = io.BytesIO()
-                img.save(output, format="WEBP", quality=85)
-                optimized_bytes = output.getvalue()
+    for attempt in range(max_retries):
+        try:
+            # Generate using Imagen 3.0
+            response = model.generate_images(
+                prompt=prompt,
+                number_of_images=1,
+                language="en",
+                aspect_ratio="1:1"
+            )
 
-            blob.upload_from_string(optimized_bytes, content_type="image/webp")
-            url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
-            logging.info(f"Successfully uploaded {sport_name} icon to GCS.")
-            return {"sport": sport_name, "url": url}
-            
-    except Exception as e:
-        logging.error(f"Failed to generate image for {sport_name}: {e}")
+            if response.images:
+                image_bytes = response.images[0]._image_bytes
+                
+                # Optimize for web: 400x400 WebP
+                with Image.open(io.BytesIO(image_bytes)) as img:
+                    img = img.resize((400, 400), Image.Resampling.LANCZOS)
+                    output = io.BytesIO()
+                    img.save(output, format="WEBP", quality=85)
+                    optimized_bytes = output.getvalue()
+
+                blob.upload_from_string(optimized_bytes, content_type="image/webp")
+                url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
+                logging.info(f"Successfully uploaded {sport_name} icon to GCS.")
+                return {"sport": sport_name, "url": url}
+
+        except exceptions.ResourceExhausted:
+            if attempt < max_retries - 1:
+                logging.warning(f"Quota exceeded (429) for {sport_name}. Retrying in {retry_wait}s...")
+                time.sleep(retry_wait)
+                retry_wait += 10  # Increase wait by 10 seconds for the next retry
+            else:
+                logging.error(f"Max retries reached for {sport_name} due to quota exhaustion.")
+        except Exception as e:
+            logging.error(f"Failed to generate image for {sport_name}: {e}")
+            break  # Exit loop for non-retryable exceptions
+
     return None
 
 def generate_sport_images():

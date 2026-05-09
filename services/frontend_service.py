@@ -1,3 +1,5 @@
+import os
+
 def get_head_html(title: str) -> str:
     return f"""
     <head>
@@ -99,18 +101,28 @@ def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None,
         """
 
     sport_items = ""
+    bucket = f"{os.getenv('GOOGLE_CLOUD_PROJECT', '')}-hub-images"
     for item in stats:
+        sport_id = item['sport_name'].lower().replace(" ", "_").replace("/", "_")
+        icon_url = f"https://storage.googleapis.com/{bucket}/sports/{sport_id}.webp"
         sport_items += f"""
-        <div class="bg-slate-100 p-6 rounded-3xl border border-slate-200 flex justify-between items-center shadow-sm">
-            <div>
-                <span class="block text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Sport</span>
-                <span class="text-xl font-black text-slate-900">{item['sport_name']}</span>
+        <div class="bg-slate-100 p-8 rounded-3xl border border-slate-200 flex justify-between items-center shadow-sm">
+            <div class="flex items-center">
+                <div class="w-12 h-12 rounded-full bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-1.5 shadow-sm flex-shrink-0">
+                    <img src="{icon_url}" class="w-full h-full object-contain" onerror="this.parentElement.style.display='none'">
+                </div>
+                <div class="pl-6">
+                    <span class="block text-base font-bold text-slate-500 uppercase tracking-wider mb-1">Sport</span>
+                    <span class="text-3xl font-black text-slate-900">{item['sport_name']}</span>
+                </div>
             </div>
             <div class="text-right">
-                <span class="block text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Athletes</span>
-                <span class="inline-block px-3 py-1 bg-blue-600 text-white rounded-full font-bold">
-                    {item['athlete_count']}
-                </span>
+                <span class="block text-base font-bold text-slate-500 uppercase tracking-wider mb-1">Athletes</span>
+                <div class="flex justify-end">
+                    <span class="flex items-center justify-center w-12 h-12 bg-blue-600 text-white rounded-full text-xl font-bold shadow-sm">
+                        {item['athlete_count']}
+                    </span>
+                </div>
             </div>
         </div>
         """
@@ -127,12 +139,11 @@ def render_hub_detail_page(hometown_id: str, stats: list, narrative: str = None,
                 </a>
             </div>
 
-            <div class="inline-block px-4 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold uppercase tracking-widest mb-6">
+            <h1 class="text-5xl font-black text-slate-900 mb-2">{display_name}</h1>
+            <div class="inline-block px-4 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold uppercase tracking-widest mb-8">
                 {region} Region
             </div>
-            
-            <h1 class="text-5xl font-black text-slate-900 mb-8">{display_name}</h1>
-            
+
             <div class="bg-blue-50 p-8 rounded-3xl border border-blue-100 mb-10">
                 <h2 class="text-xl font-bold text-blue-900 mb-4 flex items-center">
                     <span class="mr-2">✨</span> Regional Narrative

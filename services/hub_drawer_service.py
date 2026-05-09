@@ -6,7 +6,7 @@ def get_drawer_html() -> str:
     return """
         <!-- Details Drawer -->
         <div id="drawer" class="w-0 transition-all duration-500 ease-in-out overflow-y-auto border-l border-transparent bg-white h-full relative">
-            <div class="p-6 sticky top-0 bg-white/90 backdrop-blur-sm z-20 border-b border-slate-50">
+            <div class="p-4 sticky top-0 bg-white/90 backdrop-blur-sm z-20 border-b border-slate-50">
                 <button onclick="closeDrawer()" class="text-slate-400 hover:text-slate-900 font-bold uppercase text-xs tracking-widest flex items-center transition group">
                     <span class="mr-2 text-lg group-hover:-translate-x-1 transition-transform">✕</span> Close Details
                 </button>
@@ -21,6 +21,7 @@ def get_drawer_js(api_key: str) -> str:
     """Returns the JavaScript logic for opening, closing, and populating the hub details drawer."""
     return rf"""
         let activeHighlightMarker = null;
+        let lastFeaturedSport = null;
 
         function closeDrawer() {{
             const drawer = document.getElementById('drawer');
@@ -65,14 +66,19 @@ def get_drawer_js(api_key: str) -> str:
             // 2. Identify top hubs by their strongest sport
             const candidateHubs = hubs.filter(h => visibleMarkers.some(m => m.id === h.id))
                 .map(h => {{
-                    const topSport = h.sports_data.reduce((prev, curr) => (prev.count > curr.count) ? prev : curr, {{count: 0}});
+                    const topSport = h.sports_data.reduce((prev, curr) => (prev.count > curr.count) ? prev : curr, {{count: 0, sport: 'Unknown'}});
                     return {{ ...h, topSport }};
                 }})
-                .sort((a, b) => b.topSport.count - a.topSport.count)
-                .slice(0, 5); // Take top 5 for a mix of priority and randomness
+                .sort((a, b) => b.topSport.count - a.topSport.count);
 
-            if (candidateHubs.length === 0) return;
-            const target = candidateHubs[Math.floor(Math.random() * candidateHubs.length)];
+            // Favor sports different from the last featured one for variety
+            const freshCandidates = candidateHubs.filter(h => h.topSport.sport !== lastFeaturedSport);
+            const pool = freshCandidates.length > 0 ? freshCandidates.slice(0, 20) : candidateHubs.slice(0, 20);
+
+            if (pool.length === 0) return;
+            const target = pool[Math.floor(Math.random() * pool.length)];
+            lastFeaturedSport = target.topSport.sport;
+
             const marker = markers.find(m => m.id === target.id);
 
             if (marker && marker.content) {{
@@ -87,6 +93,7 @@ def get_drawer_js(api_key: str) -> str:
                 const iconUrl = `https://storage.googleapis.com/${{bucket}}/sports/${{sportId}}.webp`;
 
                 const bubble = document.createElement('div');
+                bubble.style.cursor = 'pointer';
                 bubble.innerHTML = `
                     <div class="relative animate-bounce">
                         <div class="w-8 h-8 bg-white rounded-full border-2 border-blue-500 shadow-lg overflow-hidden flex items-center justify-center p-0.5">
@@ -101,6 +108,11 @@ def get_drawer_js(api_key: str) -> str:
                     position: {{ lat: target.lat + 0.5, lng: target.lng }}, // Offset slightly north
                     content: bubble,
                     zIndex: 600
+                }});
+
+                // Allow clicking the floating sport bubble to open the hub details
+                activeHighlightMarker.addListener("gmp-click", () => {{
+                    openDrawer(target.id, target.pretty_city_name);
                 }});
             }}
         }}
@@ -140,6 +152,7 @@ def get_drawer_js(api_key: str) -> str:
                 <div class="flex justify-between items-start mb-2 gap-4">
                     <div class="flex-grow">
                         <h2 class="text-3xl font-black text-slate-900">${{prettyName}}</h2>
+                        <div id="region-badge-container" class="mt-2"></div>
                     </div>
                     <div id="hub-image-container" class="w-64 h-48 flex-shrink-0 bg-slate-100 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-100">
                         <div class="animate-pulse w-full h-full bg-slate-200"></div>
@@ -147,7 +160,7 @@ def get_drawer_js(api_key: str) -> str:
                 </div>
 
                 <h3 class="text-lg font-black text-slate-900 mb-1">Sport Representation</h3>
-                <div id="stats-container" class="grid grid-cols-2 gap-y-1.5 gap-x-4 mb-2">
+                <div id="stats-container" class="grid grid-cols-2 gap-y-2 gap-x-4 mb-2">
                     <div class="col-span-2 flex items-center justify-center py-4">
                         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
@@ -165,22 +178,31 @@ def get_drawer_js(api_key: str) -> str:
                 
                 const region = statsData.statistics[0]?.region || 'Global';
                 
-                // Add the region badge above the name
-                const regionBadge = `<div class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold uppercase tracking-widest mb-4">${{region}} Region</div>`;
-                content.insertAdjacentHTML('afterbegin', regionBadge);
+                const regionBadge = `<div class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold uppercase tracking-widest mb-2">${{region}} Region</div>`;
+                document.getElementById('region-badge-container').innerHTML = regionBadge;
 
                 const sportHtml = statsData.statistics.map(item => {{
                     // Normalize sport name to Title Case for display
                     const sportName = item.sport_name.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     const isSelected = selectedSports.has(item.sport_name);
-                    const cardClass = isSelected ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500' : 'bg-slate-100 border-slate-200';
+                    const cardClass = isSelected ? 'bg-blue-50 border-blue-500 ring-4 ring-blue-200 scale-[1.02] shadow-md z-10' : 'bg-slate-100 border-slate-200';
+                    
+                    const sportId = item.sport_name.toLowerCase().replace(/ /g, "_").replace(/\//g, "_");
+                    const bucket = "{os.getenv('GOOGLE_CLOUD_PROJECT', '')}-hub-images";
+                    const iconUrl = `https://storage.googleapis.com/${{bucket}}/sports/${{sportId}}.webp`;
+
                     return `
-                        <div class="${{cardClass}} p-2 rounded-xl border flex justify-between items-center text-sm shadow-sm transition-all duration-300">
-                            <div class="truncate mr-1">
-                                <span class="text-sm font-bold text-slate-900 truncate block uppercase tracking-widest">${{sportName}}</span>
+                        <div class="${{cardClass}} p-2.5 rounded-xl border flex justify-between items-center shadow-sm transition-all duration-300">
+                            <div class="flex items-center truncate">
+                                <div class="w-8 h-8 rounded-full bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-1 shadow-sm flex-shrink-0">
+                                    <img src="${{iconUrl}}" class="w-full h-full object-contain" onerror="this.parentElement.style.display='none'">
+                                </div>
+                                <div class="truncate pl-3">
+                                    <span class="text-base font-bold text-slate-900 truncate block uppercase tracking-widest">${{sportName}}</span>
+                                </div>
                             </div>
-                            <div class="text-right flex-shrink-0">
-                                <span class="inline-block px-2 py-0.5 bg-blue-600 text-white rounded-full text-sm font-bold">${{item.athlete_count}}</span>
+                            <div class="flex-shrink-0 ml-2">
+                                <span class="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full text-sm font-bold shadow-sm">${{item.athlete_count}}</span>
                             </div>
                         </div>
                     `;

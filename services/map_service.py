@@ -1,4 +1,5 @@
 import json
+import os
 from . import frontend_service, hub_drawer_service
 
 def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) -> str:
@@ -132,10 +133,12 @@ def render_hubs_page(hubs: list, google_maps_api_key: str, api_key: str = None) 
                     map = new Map(document.getElementById("map"), {{
                         center: {{ lat: 39.8283, lng: -98.5795 }}, // Center of the US
                         zoom: 4,
-                        mapId: "HOMETOWN_HEROES_MAP", // You can create a custom map style in Google Cloud Console
+                        minZoom: 3,
+                        mapId: "{os.getenv('GOOGLE_MAPS_MAP_ID', 'HOMETOWN_HEROES_MAP')}", 
                         disableDefaultUI: true,
                         zoomControl: true,
                         gestureHandling: 'greedy',
+                        clickableIcons: false, // Prevents clicking on standard map features (gas stations, etc)
                     }});
 
                     hubs.forEach(hub => {{
