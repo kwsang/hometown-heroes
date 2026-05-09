@@ -12,7 +12,7 @@ This document outlines the Extract, Transform, and Load (ETL) pipeline used to p
 
 ```mermaid
 graph TD
-    A[ParaSummer.pdf & ParaWinter.pdf] --> B{generate_sport_map.py};
+    A[Source PDFs in resources/] --> B{generate_sport_map.py};
     B --> C[resources/sport_map.json];
     C --> D{split_pdfs.py};
     D --> E[resources/pages/*.pdf];
@@ -52,9 +52,9 @@ graph TD
 ### 1. Generate Sport Map
 
 *   **Script:** `generate_sport_map.py`
-*   **Purpose:** This script is the initial extraction phase. It analyzes `ParaSummer.pdf` and `ParaWinter.pdf` to identify the page ranges for each sport. It also extracts the `first_athlete` and `last_athlete` names for each sport section, which are crucial for boundary validation in subsequent parsing steps.
+*   **Purpose:** This script is the initial extraction phase. It dynamically analyzes all PDF source files found in the `resources/` directory to identify the page ranges for each sport. It also extracts the `first_athlete` and `last_athlete` names for each sport section, which are crucial for boundary validation in subsequent parsing steps.
 *   **Gemini Calls:** One call to `gemini-2.5-flash` (or `gemini-2.5-flash-lite`) with the entire PDF as input. The model is instructed to return a JSON mapping of sport names to page lists and athlete boundaries.
-*   **Input:** `resources/ParaSummer.pdf`, `resources/ParaWinter.pdf`
+*   **Input:** All `.pdf` files in `resources/`
 *   **Output:** `resources/sport_map.json`
 *   **Estimated Processing Time:** ~1-2 minutes (depends on PDF size and API latency).
 
@@ -66,7 +66,7 @@ graph TD
     2.  **Chunking:** It then re-chunks large sport sections (e.g., "Track & Field") into smaller PDF segments (e.g., 3-5 pages each) to manage Gemini's output token limits during the parsing phase.
     3.  **Splitting:** It uses `pypdf` to extract the specified page ranges from the source PDFs and saves them as individual PDF files (e.g., `resources/pages/track_&_field_(part_1).pdf`).
 *   **Gemini Calls:** None. This is a Python-only PDF manipulation step.
-*   **Input:** `resources/ParaSummer.pdf`, `resources/ParaWinter.pdf`, `resources/sport_map.json`
+*   **Input:** All `.pdf` files in `resources/`, `resources/sport_map.json`
 *   **Output:** Multiple `.pdf` files in `resources/pages/` (e.g., `archery.pdf`, `basketball_(part_1).pdf`).
 *   **Estimated Processing Time:** ~1-5 minutes (depends on PDF size and number of segments).
 

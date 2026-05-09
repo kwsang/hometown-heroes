@@ -67,8 +67,10 @@ if __name__ == "__main__":
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     RESOURCES_DIR = os.path.join(SCRIPT_DIR, "resources")
     SPORT_MAP_FILE = os.path.join(RESOURCES_DIR, "sport_map.json")
-    # Handle two separate sources for Paralympic data
-    INPUT_PDFS = ["ParaSummer.pdf", "ParaWinter.pdf"]
+
+    # Dynamically find all PDF files in the resources directory to process
+    INPUT_PDFS = [f for f in os.listdir(RESOURCES_DIR) if f.lower().endswith('.pdf')]
+    print(f"Discovered {len(INPUT_PDFS)} PDF(s) in resources: {', '.join(INPUT_PDFS)}")
 
     combined_sport_map = {}
     for pdf_name in INPUT_PDFS:
